@@ -37,20 +37,22 @@ typedef enum {
     CS_RELEASE       ///< empty message
 } MessageType;
 
-typedef struct {
-    uint16_t     s_magic;        ///< magic signature, must be MESSAGE_MAGIC
-    uint16_t     s_payload_len;  ///< length of payload
-    int16_t      s_type;         ///< type of the message
-    timestamp_t  s_local_time;   ///< set by sender, depends on particular PA:
-                                 ///< physical time in PA2 or Lamport's scalar
-                                 ///< time in PA3
+typedef struct
+{
+    uint16_t s_magic;         ///< magic signature, must be MESSAGE_MAGIC
+    uint16_t s_payload_len;   ///< length of payload
+    int16_t s_type;           ///< type of the message
+    timestamp_t s_local_time; ///< set by sender, depends on particular PA:
+                              ///< physical time in PA2 or Lamport's scalar
+                              ///< time in PA3
 } __attribute__((packed)) MessageHeader;
 
 enum {
     MAX_PAYLOAD_LEN = MAX_MESSAGE_LEN - sizeof(MessageHeader)
 };
 
-typedef struct {
+typedef struct
+{
     MessageHeader s_header;
     char s_payload[MAX_PAYLOAD_LEN]; ///< Must be used as a buffer, unused "tail"
                                      ///< shouldn't be transfered
