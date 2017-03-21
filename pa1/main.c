@@ -61,12 +61,6 @@ int main(int argc, char *argv[]) {
 
 	if (pipe_init(n) == -1) exit(EXIT_FAILURE);
 
-	//test
-	/*for (int i = 0; i < 2 * n * (n - 1); i++) {
-		printf("%d\t", i);
-		for (int j = 0; j < 2; j++) printf("%d  ", pipes[i][j]);
-		printf("\n");
-	}*/
 
 	for (int i = 1; i < n; i++) {
 		switch(fork()) {
@@ -81,7 +75,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	close_unnecessary_pipes(0);
+	//close_unnecessary_pipes(0);
 
 	//wait_child(STARTED);
 	//log
@@ -105,8 +99,14 @@ void child_handle(int id) {
     printf(log_msg, NULL);
 	write(ev_log, log_msg, strlen(log_msg));
 
-	close_unnecessary_pipes(local_proc_id);
+	//char *test_msg = "test fd";
+	//char test_rec[10] = {0};
 
+	//close_unnecessary_pipes(local_proc_id);
+
+	//if (write(11, test_msg, strlen(test_msg)) < 0) perror("DUCK!");
+	//read(10, &test_rec, 8);
+	//printf("\t%s\n", test_rec);
 	//first stage -- start
 	MessagePayload messagePayload;
 	messagePayload.s_data = log_msg; //already contains log_started_fmt
@@ -114,15 +114,42 @@ void child_handle(int id) {
 
 	Message *msg = malloc(sizeof(Message));
 	create_massage(msg, STARTED, &messagePayload);
-	send_multicast(NULL, msg);
+	if (send_multicast(NULL, msg) < 0) {
+			perror("\tsend_multicast STARTED");
+			exit(EXIT_FAILURE);
+	}
 
 	//wait_other(STARTED);
-	//log
+	
+	/*log
+	*spring(log_msg, log_received_all_started_fmt, local_proc_id);
+    *printf(log_msg, NULL);
+	*write(ev_log, log_msg, strlen(log_msg));
+	*/
+
 	//second stage -- work
+
 	//third stage -- done
-	//send_multicast(void * self, const Message * msg);
+	sprintf(log_msg, log_done_fmt, local_proc_id);
+    printf(log_msg, NULL);
+	write(ev_log, log_msg, strlen(log_msg));
+	
+	messagePayload.s_data = log_msg; //already contains log_started_fmt
+	messagePayload.s_size = (uint16_t)strlen(log_msg);
+
+	create_massage(msg, DONE, &messagePayload);
+	if (send_multicast(NULL, msg) < 0) {
+			perror("send_multicast DONE");
+			exit(EXIT_FAILURE);
+	}
+
+	free(msg);
 	//wait_other(DONE);
-	//log
+	/*log
+	*spring(log_msg, log_received_all_done_fmt, local_proc_id);
+    *printf(log_msg, NULL);
+	*write(ev_log, log_msg, strlen(log_msg));
+	*/
 
 	close(ev_log);
 	exit(EXIT_SUCCESS);
