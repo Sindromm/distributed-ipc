@@ -51,13 +51,28 @@ int get_pipe(local_id requested, local_id base)
     }
 }
 
-//Attention: Should we close write for parent(local_proc_id = 0) proc?
+int close_rw_pipes() {
+    //Position of current process fds in pid's fds block
+    int block_size = 2 * (n - 1);
+    int block = local_proc_id * block_size;
+    int block_end = block + block_size;
+
+    for (int i = block; i < block_end; i++) {
+        if (close(((i % 2)?pipes[i][1]:pipes[i][0]))) {
+            perror("close_rw_pipes close error");
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 int close_redundant_pipes()
 {
-    int max_pid = n;
+    local_id max_pid = n;
     int block_size = 2 * (n - 1);
 
-    for (int pid = 0; pid < max_pid; pid++) {
+    for (local_id pid = 0; pid < max_pid; pid++) {
         if (pid == local_proc_id) { //fds for current process
             continue;
         }
@@ -68,25 +83,53 @@ int close_redundant_pipes()
 
         //for this line don't need to check for -1
         //since checked for this condition above
-        int local_id_position = get_pipe(local_proc_id, pid);
+
+        //Position of current process fds in pid's fds block
+        int lid_pos = get_pipe(local_proc_id, pid);
+        //start of pid's fds block
         int fdp = pid * block_size;
+        //end of pid's fds block
         int max_fdp = fdp + block_size;
+
         for (; fdp < max_fdp; fdp += 2) {
-            if (fdp == local_id_position || fdp == local_id_position + 1) {
+            if (fdp == lid_pos || pipes[fdp][0] == -1) {
                 //mustn't be closed because they are duplicated in
                 //current process block
+                //
+                //or closed already
                 continue;
             }
 
             //Close redundant fdps related to communication between
             //pid and set of all processes without current
-            //
-            //NOTE: need to nullify other fds.. to avoid close error
-            if (close(pipes[fdp][0]) || close(pipes[fdp][1]) || close(pipes[fdp + 1][0]) || close(pipes[fdp + 1][1])) {
+
+            if (close(pipes[fdp    ][0]) || close(pipes[fdp    ][1]) ||
+                close(pipes[fdp + 1][0]) || close(pipes[fdp + 1][1])) {
                 perror("close_redundant_pipes close error");
             }
+
+            //For which process fds were closed
+            //
+            //This is pid's fds block
+
+            local_id closed_id;
+            int offset = fdp % block_size / 2;
+            if (offset == 0) {
+                closed_id = pid + 1;
+            }
+            else {
+                closed_id = offset;
+                if (pid < closed_id) {
+                    closed_id++;
+                }
+            }
+
+            int tip = get_pipe(pid, closed_id);
+            pipes[tip][0] = pipes[tip][1] = pipes[tip + 1][0] = pipes[tip + 1][1] = -1;
         }
     }
+
+    close_rw_pipes();
     return 0;
 }
 
