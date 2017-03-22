@@ -59,8 +59,9 @@ int main(int argc, char * argv[])
 
     n = proc_count + 1;
 
-    if (pipe_init(n) == -1)
+    if (pipe_init(n) == -1) {
         exit(EXIT_FAILURE);
+    }
 
     for (int i = 1; i < n; i++) {
         switch (fork()) {
@@ -68,14 +69,14 @@ int main(int argc, char * argv[])
             perror("fork error");
             exit(EXIT_FAILURE);
         case 0:
-            child_handle((local_id)i);
+            child_handle((local_id)i); //NOTE: waaaaaaaaaaaaaaaat?!
             break;
         default:
             break;
         }
     }
 
-    //close_unnecessary_pipes(0);
+    //close_redundant_pipes(0);
 
     //wait_child(STARTED);
     //log
@@ -98,12 +99,12 @@ void child_handle(int id)
     local_proc_id = id;
     sprintf(log_msg, log_started_fmt, local_proc_id, getpid(), getppid());
     printf(log_msg, NULL);
-    write(ev_log, log_msg, strlen(log_msg));
+    write(ev_log, log_msg, strlen(log_msg)); //NOTE: what about check write return code?
 
     //char *test_msg = "test fd";
     //char test_rec[10] = {0};
 
-    //close_unnecessary_pipes(local_proc_id);
+    close_redundant_pipes();
 
     //if (write(11, test_msg, strlen(test_msg)) < 0) perror("DUCK!");
     //read(10, &test_rec, 8);

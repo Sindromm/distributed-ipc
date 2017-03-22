@@ -9,7 +9,7 @@
 
 int pipe_init(int num);
 
-int close_unnecessary_pipes();
+int close_redundant_pipes();
 
 int get_recipient(local_id dst);
 

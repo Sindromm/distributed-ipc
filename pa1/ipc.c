@@ -23,22 +23,29 @@ int send_multicast(void * self, const Message * msg)
 {
     for (int dst = 0; dst < n; dst++) {
         if (dst != local_proc_id) {
-            if (send(self, dst, msg) != 0)
+            if (send(self, dst, msg) != 0) {
                 return -1;
+            }
         }
     }
+
     return 0;
 }
 
 int receive(void * self, local_id from, Message * msg)
 {
     int fd = get_sender(from);
-    if (fd < 0)
+    if (fd < 0) {
         return -1;
-    if (read(fd, msg, sizeof(MessageHeader)) < 0)
+    }
+
+    if (read(fd, msg, sizeof(MessageHeader)) < 0) {
         return -1;
-    if (read(fd, (MessageHeader *)msg + 1, (msg->s_header).s_payload_len) < 0)
+    }
+
+    if (read(fd, (MessageHeader *)msg + 1, (msg->s_header).s_payload_len) < 0) {
         return -1;
+    }
     return 0;
 }
 

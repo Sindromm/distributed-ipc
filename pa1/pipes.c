@@ -37,26 +37,53 @@ int pipe_init(int num)
     return 0;
 }
 
+int get_pipe(local_id requested, local_id base)
+{
+    if (requested == base) {
+        return -1;
+    }
+
+    if (requested < base) {
+        return 2 * (n - 1) * base + 2 * requested;
+    }
+    else {
+        return 2 * (n - 1) * base + 2 * (requested - 1);
+    }
+}
+
 //Attention: Should we close write for parent(local_proc_id = 0) proc?
-int close_unnecessary_pipes()
-{ //Descend through the rows
-    int to = 2 * n * (n - 1);
-    for (int i = 0; i < to; i++) {
-        if ((i < 2 * local_proc_id * (n - 1)) || (i >= 2 * (local_proc_id + 1) * (n - 1))) {
-            if (close(pipes[i][0]) < 0)
-                perror("close_unnecessary_pipes 1 error");
-            if (close(pipes[i][1]) < 0)
-                perror("close_unnecessary_pipes 2 error");
+int close_redundant_pipes()
+{
+    int max_pid = n;
+    int block_size = 2 * (n - 1);
+
+    for (int pid = 0; pid < max_pid; pid++) {
+        if (pid == local_proc_id) { //fds for current process
+            continue;
         }
-        else {
-            //(i % 2 == 0)?close(pipes[i][0]):close(pipes[i][1]);
-            if (i % 2 == 0) {
-                if (close(pipes[i][0]) < 0)
-                    perror("close_unnecessary_pipes 3 error");
+
+        //For each process descriptor block (PDB)
+        //Need to close descriptors which have no
+        //duplicated in current process PDB
+
+        //for this line don't need to check for -1
+        //since checked for this condition above
+        int local_id_position = get_pipe(local_proc_id, pid);
+        int fdp = pid * block_size;
+        int max_fdp = fdp + block_size;
+        for (; fdp < max_fdp; fdp += 2) {
+            if (fdp == local_id_position || fdp == local_id_position + 1) {
+                //mustn't be closed because they are duplicated in
+                //current process block
+                continue;
             }
-            else {
-                if (close(pipes[i][1]) < 0)
-                    perror("close_unnecessary_pipes 4 error");
+
+            //Close redundant fdps related to communication between
+            //pid and set of all processes without current
+            //
+            //NOTE: need to nullify other fds.. to avoid close error
+            if (close(pipes[fdp][0]) || close(pipes[fdp][1]) || close(pipes[fdp + 1][0]) || close(pipes[fdp + 1][1])) {
+                perror("close_redundant_pipes close error");
             }
         }
     }
@@ -65,17 +92,16 @@ int close_unnecessary_pipes()
 
 int get_recipient(local_id dst)
 {
-    if (dst < local_proc_id) {
-        return pipes[2 * local_proc_id * (n - 1) + 2 * dst][1];
+    if (dst == local_proc_id) {
+        return -1;
     }
-    else if (dst > local_proc_id) { // dst == proc_id --> error?
-        return pipes[2 * local_proc_id * (n - 1) + 2 * (dst - 1)][1];
-    }
-    return -1;
+
+    return pipes[get_pipe(dst, local_proc_id)][1];
 }
 
 int get_sender(local_id from)
 {
+    //NOTE: use get_pipe instead
     if (from < local_proc_id) {
         return pipes[2 * local_proc_id * (n - 1) + 2 * from + 1][0];
     }
@@ -99,21 +125,22 @@ int pipe_log(int fd, int slave){
 			perror("pipe_log error");
 			return -1;
 	}
-	
+
 	sprintf(log_msg, log_pipe_close_fmt, local_proc_id, fd, slave);
 	write(p_log, log_msg, strlen(log_msg));
-	
+
 	close(p_log);
 	return 0;
 }*/
 
 int test_pipes()
 {
-    for (int i = 0; i < 2 * n * (n - 1); i++) {
-        printf("%d\t", i);
-        for (int j = 0; j < 2; j++)
-            printf("%d  ", pipes[i][j]);
-        printf("\n");
+    int max = 2 * n * (n - 1);
+    for (int i = 0; i < max; i++) {
+        printf("%d:\t[0] = %d \t[1] = %d\n",
+                i,
+                pipes[i][0],
+                pipes[i][1]);
     }
     return 0;
 }
