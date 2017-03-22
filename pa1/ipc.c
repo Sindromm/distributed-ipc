@@ -7,13 +7,13 @@
 
 extern int n;
 extern local_id local_proc_id;
+extern int p_log;
 
 int send(void * self, local_id dst, const Message * msg)
 {
     int fd = get_recipient(dst);
-    printf("\t%d\n", fd);
     if (fd < 0 || write(fd, msg, sizeof(MessageHeader) + (msg->s_header).s_payload_len) <= 0) {
-        perror("\tsend error");
+        perror("send error");
         return -1;
     }
     return 0;

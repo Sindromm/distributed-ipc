@@ -6,20 +6,18 @@
 
 #include "pipes.h"
 
-#define LOG_FILE_FLAGS O_CREAT | O_WRONLY | O_APPEND | O_TRUNC
-#define MODE 0666
-
-int n;
+local_id n;
 int (*pipes)[2];
 extern local_id local_proc_id;
+extern int p_log;
 
-int pipe_init(int num)
+int pipe_init(local_id num)
 {
     n = num;
     pipes = malloc(sizeof(int) * 2 * 2 * n * (n - 1));
     int fds_element_pointer = 0;
-    for (int i = 0; i < n; i++) {     //master_proc_id
-        for (int j = 0; j < n; j++) { //slave_proc_id
+    for (local_id i = 0; i < n; i++) {     //master_proc_id
+        for (local_id j = 0; j < n; j++) { //slave_proc_id
             if (j > i) {
                 if (pipe2(pipes[fds_element_pointer++], O_NONBLOCK) == -1)
                     return -1;
@@ -27,8 +25,10 @@ int pipe_init(int num)
                     return -1;
             }
             else if (j < i) {
-                memcpy(&pipes[fds_element_pointer++], &pipes[j * 2 * (n - 1) + 2 * (i - 1) + 1], 8);
-                memcpy(&pipes[fds_element_pointer++], &pipes[j * 2 * (n - 1) + 2 * (i - 1)], 8);
+                memcpy(&pipes[fds_element_pointer++], &pipes[get_pipe(i, j) + 1], 8);
+                memcpy(&pipes[fds_element_pointer++], &pipes[get_pipe(i, j)], 8);
+                //memcpy(&pipes[fds_element_pointer++], &pipes[j * 2 * (n - 1) + 2 * (i - 1) + 1], 8);
+                //memcpy(&pipes[fds_element_pointer++], &pipes[j * 2 * (n - 1) + 2 * (i - 1)], 8);
             }
         }
     }
@@ -101,37 +101,29 @@ int get_recipient(local_id dst)
 
 int get_sender(local_id from)
 {
-    //NOTE: use get_pipe instead
-    if (from < local_proc_id) {
-        return pipes[2 * local_proc_id * (n - 1) + 2 * from + 1][0];
+    if (from == local_proc_id) {
+        return -1;
     }
-    else if (from > local_proc_id) {
-        return pipes[2 * local_proc_id * (n - 1) + 2 * from - 1][0];
-    }
-    return -1;
+    
+    return pipes[get_pipe(from, local_proc_id) + 1][0];
 }
 
-/*const char * const log_pipe_open_fmt =
-	"Process %d open pipe to process %d\n";
+const char * const log_pipe_write_fmt =
+	"Process %d write to pipe with = %d\n";
 
-const char * const log_pipe_close_fmt =
-	"Process %d close fd = %d to process %d\n";
+const char * const log_pipe_read_fmt =
+	"Process %d read from pipe with = %d\n";
 
-int pipe_log(int fd, int slave){
-	int p_log;
+int pipe_log(char const *str, int fd){
 	char log_msg[128];
 
-	if ((p_log = open(pipes_log, LOG_FILE_FLAGS, MODE)) == -1) {
-			perror("pipe_log error");
-			return -1;
-	}
+	sprintf(log_msg, str, local_proc_id, fd);
+	if (write(p_log, log_msg, strlen(log_msg)) < 0){
+            return -1;
+        }
 
-	sprintf(log_msg, log_pipe_close_fmt, local_proc_id, fd, slave);
-	write(p_log, log_msg, strlen(log_msg));
-
-	close(p_log);
 	return 0;
-}*/
+}
 
 int test_pipes()
 {

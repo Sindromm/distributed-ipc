@@ -24,8 +24,8 @@ struct MessagePayload
 };
 int create_message(Message * msg, MessageType type, const MessagePayload * payload);
 
-int n;
-int ev_log;
+local_id n;
+int ev_log, p_log;
 char log_msg[MAX_PAYLOAD_LEN];
 
 local_id local_proc_id = 0;
@@ -53,7 +53,11 @@ int main(int argc, char * argv[])
     }
 
     if ((ev_log = open(events_log, LOG_FILE_FLAGS, MODE)) == -1) {
-        perror("log open error");
+        perror("events log open error");
+        exit(EXIT_FAILURE);
+    }
+    if ((p_log = open(pipes_log, LOG_FILE_FLAGS, MODE)) == -1) {
+        perror("pipe log open error");
         exit(EXIT_FAILURE);
     }
 
@@ -63,13 +67,13 @@ int main(int argc, char * argv[])
         exit(EXIT_FAILURE);
     }
 
-    for (int i = 1; i < n; i++) {
+    for (local_id i = 1; i < n; i++) {
         switch (fork()) {
         case -1:
             perror("fork error");
             exit(EXIT_FAILURE);
         case 0:
-            child_handle((local_id)i); //NOTE: waaaaaaaaaaaaaaaat?!
+            child_handle(i); 
             break;
         default:
             break;
@@ -91,6 +95,7 @@ int main(int argc, char * argv[])
     }
 
     close(ev_log);
+    close(p_log);
     return 0;
 }
 
@@ -99,16 +104,13 @@ void child_handle(int id)
     local_proc_id = id;
     sprintf(log_msg, log_started_fmt, local_proc_id, getpid(), getppid());
     printf(log_msg, NULL);
-    write(ev_log, log_msg, strlen(log_msg)); //NOTE: what about check write return code?
-
-    //char *test_msg = "test fd";
-    //char test_rec[10] = {0};
+    if (write(ev_log, log_msg, strlen(log_msg)) < 0) {
+        perror("write ev_log error");
+        exit(EXIT_FAILURE);
+    }
 
     close_redundant_pipes();
 
-    //if (write(11, test_msg, strlen(test_msg)) < 0) perror("DUCK!");
-    //read(10, &test_rec, 8);
-    //printf("\t%s\n", test_rec);
     //first stage -- start
     MessagePayload messagePayload;
     messagePayload.s_data = log_msg; //already contains log_started_fmt
@@ -134,7 +136,10 @@ void child_handle(int id)
     //third stage -- done
     sprintf(log_msg, log_done_fmt, local_proc_id);
     printf(log_msg, NULL);
-    write(ev_log, log_msg, strlen(log_msg));
+    if (write(ev_log, log_msg, strlen(log_msg)) < 0) {
+        perror("write ev_log error");
+        exit(EXIT_FAILURE);
+    }
 
     messagePayload.s_data = log_msg; //already contains log_started_fmt
     messagePayload.s_size = (uint16_t)strlen(log_msg);
