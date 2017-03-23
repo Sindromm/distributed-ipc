@@ -11,6 +11,49 @@ int (*pipes)[2];
 extern local_id local_proc_id;
 extern int p_log;
 
+/* Pipe descriptors storage
+ * Here is N processes
+ * Need to create (N - 1) for each
+ *
+ * Create array of 2 * N * (N - 1) pairs of integers
+ * To make easier navigating through this array
+ *
+ * This way we split pipes array into N blocks
+ * Process X need only [X * (N - 1), X * N) subset
+ * There are all fds he needs to communicate over pipes
+ * with each other process
+ * In total, we need N * (N - 1) pipe2 calls
+ * And store this fds in 2 * N * (N - 1) array
+ * with reversed order duplication
+ *
+ * Pipe array for 2 child processes:
+ *    +----+----+
+ *  0 | r0 | w0 |
+ *    +----+----+  0 <-> 1
+ *  1 | r1 | w1 |
+ *    +----+----+
+ *  2 | r2 | w2 |
+ *    +----+----+  0 <-> 2
+ *  3 | r3 | w3 |
+ *    +----+----+
+ *  4 | r1 | w1 |
+ *    +----+----+  1 <-> 0
+ *  5 | r0 | w0 |
+ *    +----+----+
+ *  6 | r4 | w4 |
+ *    +----+----+  1 <-> 2
+ *  7 | r5 | w5 |
+ *    +----+----+
+ *  8 | r3 | w3 |
+ *    +----+----+  2 <-> 0
+ *  9 | r2 | w2 |
+ *    +----+----+
+ * 10 | r5 | w5 |
+ *    +----+----+  2 <-> 1
+ * 11 | r4 | w4 |
+ *    +----+----+
+ */
+
 int pipe_init(local_id num)
 {
     n = num;
@@ -27,8 +70,6 @@ int pipe_init(local_id num)
             else if (j < i) {
                 memcpy(&pipes[fds_element_pointer++], &pipes[get_pipe(i, j) + 1], 8);
                 memcpy(&pipes[fds_element_pointer++], &pipes[get_pipe(i, j)], 8);
-                //memcpy(&pipes[fds_element_pointer++], &pipes[j * 2 * (n - 1) + 2 * (i - 1) + 1], 8);
-                //memcpy(&pipes[fds_element_pointer++], &pipes[j * 2 * (n - 1) + 2 * (i - 1)], 8);
             }
         }
     }
@@ -145,7 +186,7 @@ int get_sender(local_id from)
     if (from == local_proc_id) {
         return -1;
     }
-    
+
     return pipes[get_pipe(from, local_proc_id) + 1][0];
 }
 
@@ -155,15 +196,16 @@ const char * const log_pipe_write_fmt =
 const char * const log_pipe_read_fmt =
 	"Process %d read from pipe with = %d\n";
 
-int pipe_log(char const *str, int fd){
-	char log_msg[128];
+int pipe_log(const char * str, int fd)
+{
+    char log_msg[128];
 
-	sprintf(log_msg, str, local_proc_id, fd);
-	if (write(p_log, log_msg, strlen(log_msg)) < 0){
-            return -1;
-        }
+    sprintf(log_msg, str, local_proc_id, fd);
+    if (write(p_log, log_msg, strlen(log_msg)) < 0) {
+        return -1;
+    }
 
-	return 0;
+    return 0;
 }
 
 int test_pipes()
