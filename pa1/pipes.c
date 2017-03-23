@@ -83,7 +83,6 @@ int close_redundant_pipes()
 
         //for this line don't need to check for -1
         //since checked for this condition above
-
         //Position of current process fds in pid's fds block
         int lid_pos = get_pipe(local_proc_id, pid);
         //start of pid's fds block
@@ -101,8 +100,7 @@ int close_redundant_pipes()
             }
 
             //Close redundant fdps related to communication between
-            //pid and set of all processes without current
-
+            //pid and set of all processes except this one
             if (close(pipes[fdp    ][0]) || close(pipes[fdp    ][1]) ||
                 close(pipes[fdp + 1][0]) || close(pipes[fdp + 1][1])) {
                 perror("close_redundant_pipes close error");
@@ -115,11 +113,11 @@ int close_redundant_pipes()
             local_id closed_id;
             int offset = fdp % block_size / 2;
             if (offset == 0) {
-                closed_id = pid + 1;
+                closed_id = 1;
             }
             else {
                 closed_id = offset;
-                if (pid < closed_id) {
+                if (pid <= closed_id) {
                     closed_id++;
                 }
             }
