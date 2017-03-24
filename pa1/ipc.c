@@ -22,7 +22,7 @@ int send(void * self, local_id dst, const Message * msg)
 int send_multicast(void * self, const Message * msg)
 {
     TaskStruct * task = self;
-    for (int dst = 0; dst < task->local_pid; dst++) {
+    for (int dst = 0; dst < task->total_proc; dst++) {
         if (dst != task->local_pid) {
             if (send(self, dst, msg) != 0) {
                 return -1;
@@ -67,4 +67,3 @@ int receive_any(void * self, Message * msg)
         }
     }
 }
-

@@ -59,6 +59,7 @@ void child_handle(TaskStruct * task)
     //second stage -- work
 
     //third stage -- done
+//TODO: FIX DAT SHIT
     sprintf(log_msg, log_done_fmt, task->local_pid);
     printf(log_msg, NULL);
     if (write(task->events_log_fd, log_msg, strlen(log_msg)) < 0) {
@@ -70,7 +71,7 @@ void child_handle(TaskStruct * task)
     payload.s_size = (uint16_t)strlen(log_msg);
 
     create_message(msg, DONE, &payload);
-    if (send_multicast(NULL, msg) < 0) {
+    if (send_multicast(task, msg) < 0) {
         perror("send_multicast DONE");
         exit(EXIT_FAILURE);
     }
