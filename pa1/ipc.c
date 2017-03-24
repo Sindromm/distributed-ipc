@@ -4,26 +4,26 @@
 
 #include "ipc.h"
 #include "pipes.h"
+#include "proc.h"
 
-extern int n;
-extern local_id local_proc_id;
-extern int p_log;
 
 int send(void * self, local_id dst, const Message * msg)
 {
-    int fd = get_recipient(dst);
+    TaskStruct * task = self;
+    int fd = get_recipient(task, dst);
     if (fd < 0 || write(fd, msg, sizeof(MessageHeader) + (msg->s_header).s_payload_len) <= 0) {
         perror("send error");
         return -1;
     }
-    pipe_log(p_log, fd, "Process %d write to pipe with = %d\n");
+    pipe_log(task, task->pipe_log_fd, fd, "Process %d write to pipe with = %d\n");
     return 0;
 }
 
 int send_multicast(void * self, const Message * msg)
 {
-    for (int dst = 0; dst < n; dst++) {
-        if (dst != local_proc_id) {
+    TaskStruct * task = self;
+    for (int dst = 0; dst < task->local_pid; dst++) {
+        if (dst != task->local_pid) {
             if (send(self, dst, msg) != 0) {
                 return -1;
             }
@@ -35,7 +35,8 @@ int send_multicast(void * self, const Message * msg)
 
 int receive(void * self, local_id from, Message * msg)
 {
-    int fd = get_sender(from);
+    TaskStruct * task = self;
+    int fd = get_sender(task, from);
     if (fd < 0) {
         return -1;
     }
@@ -47,14 +48,16 @@ int receive(void * self, local_id from, Message * msg)
     if (read(fd, (MessageHeader *)msg + 1, (msg->s_header).s_payload_len) < 0) {
         return -1;
     }
+//TODO: log receiving
 
     return 0;
 }
 
 int receive_any(void * self, Message * msg)
 {
+    TaskStruct * task = self;
     while (1) {
-        for (local_id from = 1; from < n; from++) {
+        for (local_id from = 1; from < task->total_proc; from++) {
             if (receive(self, from, msg) < 0) {
                 return -1;
             }

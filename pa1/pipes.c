@@ -6,9 +6,6 @@
 
 #include "pipes.h"
 
-local_id n;
-int (*pipes)[2];
-extern local_id local_proc_id;
 
 /* Pipe descriptors storage
  * Here is N processes
@@ -53,36 +50,52 @@ extern local_id local_proc_id;
  *    +----+----+
  */
 
-int pipe_init(local_id num)
+
+int test_pipes(TaskStruct * task)
 {
-    n = num;
-    pipes = malloc(sizeof(int) * 2 * 2 * n * (n - 1));
-    int fds_element_pointer = 0;
+    int n = task->total_proc;
+    int max = 2 * n * (n - 1);
+    for (int i = 0; i < max; i++) {
+        printf("%d:\t[0] = %d \t[1] = %d\n",
+               i,
+               task->pipes[i][0],
+               task->pipes[i][1]);
+    }
+    return 0;
+}
+
+int pipe_init(TaskStruct * task)
+{
+    int n = task->total_proc;
+    task->pipes = (int (*)[2])malloc(sizeof(int) * 2 * 2 * n * (n - 1));
+    int (*pipes)[2] = task->pipes;
+    int fdp = 0;
     for (local_id i = 0; i < n; i++) {     //master_proc_id
         for (local_id j = 0; j < n; j++) { //slave_proc_id
             if (j > i) {
-                if (pipe2(pipes[fds_element_pointer++], O_NONBLOCK) == -1)
+                if (pipe2(pipes[fdp++], O_NONBLOCK) == -1)
                     return -1;
-                if (pipe2(pipes[fds_element_pointer++], O_NONBLOCK) == -1)
+                if (pipe2(pipes[fdp++], O_NONBLOCK) == -1)
                     return -1;
             }
             else if (j < i) {
-                memcpy(&pipes[fds_element_pointer++], &pipes[get_pipe(i, j) + 1], 8);
-                memcpy(&pipes[fds_element_pointer++], &pipes[get_pipe(i, j)], 8);
+                memcpy(&pipes[fdp++], &pipes[get_pipe(task, i, j) + 1], 8);
+                memcpy(&pipes[fdp++], &pipes[get_pipe(task, i, j)], 8);
             }
         }
     }
 
-    test_pipes();
+    test_pipes(task);
     return 0;
 }
 
-int get_pipe(local_id requested, local_id base)
+int get_pipe(TaskStruct * task, local_id requested, local_id base)
 {
     if (requested == base) {
         return -1;
     }
 
+    int n = task->total_proc;
     if (requested < base) {
         return 2 * (n - 1) * base + 2 * requested;
     }
@@ -91,14 +104,15 @@ int get_pipe(local_id requested, local_id base)
     }
 }
 
-int close_rw_pipes() {
+int close_rw_pipes(TaskStruct * task)
+{
     //Position of current process fds in pid's fds block
-    int block_size = 2 * (n - 1);
-    int block = local_proc_id * block_size;
+    int block_size = 2 * (task->total_proc - 1);
+    int block = task->local_pid * block_size;
     int block_end = block + block_size;
 
     for (int i = block; i < block_end; i++) {
-        if (close(((i % 2)?pipes[i][1]:pipes[i][0]))) {
+        if (close(((i % 2) ? task->pipes[i][1] : task->pipes[i][0]))) {
             perror("close_rw_pipes close error");
             return 1;
         }
@@ -107,13 +121,14 @@ int close_rw_pipes() {
     return 0;
 }
 
-int close_redundant_pipes()
+int close_redundant_pipes(TaskStruct * task)
 {
-    local_id max_pid = n;
-    int block_size = 2 * (n - 1);
+    local_id max_pid = task->total_proc;
+    int (*pipes)[2] = task->pipes;
+    int block_size = 2 * (max_pid - 1);
 
     for (local_id pid = 0; pid < max_pid; pid++) {
-        if (pid == local_proc_id) { //fds for current process
+        if (pid == task->local_pid) { //fds for current process
             continue;
         }
 
@@ -124,7 +139,7 @@ int close_redundant_pipes()
         //for this line don't need to check for -1
         //since checked for this condition above
         //Position of current process fds in pid's fds block
-        int lid_pos = get_pipe(local_proc_id, pid);
+        int lid_pos = get_pipe(task, task->local_pid, pid);
         //start of pid's fds block
         int fdp = pid * block_size;
         //end of pid's fds block
@@ -162,54 +177,41 @@ int close_redundant_pipes()
                 }
             }
 
-            int tip = get_pipe(pid, closed_id);
+            int tip = get_pipe(task, pid, closed_id);
             pipes[tip][0] = pipes[tip][1] = pipes[tip + 1][0] = pipes[tip + 1][1] = -1;
         }
     }
 
-    close_rw_pipes();
+    close_rw_pipes(task);
     return 0;
 }
 
-int get_recipient(local_id dst)
+int get_recipient(TaskStruct * task, local_id dst)
 {
-    if (dst == local_proc_id) {
+    if (dst == task->local_pid) {
         return -1;
     }
 
-    return pipes[get_pipe(dst, local_proc_id)][1];
+    return task->pipes[get_pipe(task, dst, task->local_pid)][1];
 }
 
-int get_sender(local_id from)
+int get_sender(TaskStruct * task, local_id from)
 {
-    if (from == local_proc_id) {
+    if (from == task->local_pid) {
         return -1;
     }
 
-    return pipes[get_pipe(from, local_proc_id) + 1][0];
+    return task->pipes[get_pipe(task, from, task->local_pid) + 1][0];
 }
 
-
-int pipe_log(int log_fd, int proc_fd, const char * str)
+int pipe_log(TaskStruct * task, int log_fd, int proc_fd, const char * str)
 {
     char log_msg[128];
 
-    sprintf(log_msg, str, local_proc_id, proc_fd);
+    sprintf(log_msg, str, task->local_pid, proc_fd);
     if (write(log_fd, log_msg, strlen(log_msg)) < 0) {
         return -1;
     }
 
-    return 0;
-}
-
-int test_pipes()
-{
-    int max = 2 * n * (n - 1);
-    for (int i = 0; i < max; i++) {
-        printf("%d:\t[0] = %d \t[1] = %d\n",
-                i,
-                pipes[i][0],
-                pipes[i][1]);
-    }
     return 0;
 }

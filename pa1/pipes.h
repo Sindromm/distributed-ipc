@@ -6,24 +6,18 @@
 
 #include "common.h"
 #include "ipc.h"
+#include "proc.h"
 
-/*const char * const log_pipe_write_fmt =
-	"Process %d write to pipe with = %d\n";
 
-const char * const log_pipe_read_fmt =
-	"Process %d read from pipe with = %d\n";
-*/
-int pipe_init(local_id num);
+int pipe_init(TaskStruct * task);
 
-int get_pipe(local_id requested, local_id base);
+int get_pipe(TaskStruct * task, local_id requested, local_id base);
 
-int close_redundant_pipes();
+int close_redundant_pipes(TaskStruct * task);
 
-int get_recipient(local_id dst);
+int get_recipient(TaskStruct * task, local_id dst);
 
-int get_sender(local_id from);
+int get_sender(TaskStruct * task, local_id from);
 
-int test_pipes();
-
-int pipe_log(int log_fd, int proc_fd, const char * str);
+int pipe_log(TaskStruct * task, int log_fd, int proc_fd, const char * str);
 #endif
