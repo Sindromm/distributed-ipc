@@ -15,6 +15,14 @@
 #define MODE 0666
 
 void child_handle(int id);
+typedef struct TaskStruct TaskStruct;
+struct TaskStruct
+{
+    local_id local_pid;
+    local_id total_proc;
+    int pipe_log_fd;
+    int events_log_fd;
+};
 
 typedef struct MessagePayload MessagePayload;
 struct MessagePayload
@@ -25,8 +33,10 @@ struct MessagePayload
 int create_message(Message * msg, MessageType type, const MessagePayload * payload);
 
 local_id n;
-int ev_log, p_log;
+int p_log;
+TaskStruct * taskStruct;
 char log_msg[MAX_PAYLOAD_LEN];
+
 
 local_id local_proc_id = 0;
 
@@ -52,22 +62,27 @@ int main(int argc, char * argv[])
         exit(EXIT_FAILURE);
     }
 
-    if ((ev_log = open(events_log, LOG_FILE_FLAGS, MODE)) == -1) {
+    taskStruct = malloc(sizeof(TaskStruct));
+    taskStruct->total_proc = proc_count + 1;
+    taskStruct->local_pid = 0;
+
+    if ((taskStruct->events_log_fd = open(events_log, LOG_FILE_FLAGS, MODE)) == -1) {
         perror("events log open error");
         exit(EXIT_FAILURE);
     }
-    if ((p_log = open(pipes_log, LOG_FILE_FLAGS, MODE)) == -1) {
+    if ((taskStruct->pipe_log_fd = open(pipes_log, LOG_FILE_FLAGS, MODE)) == -1) {
         perror("pipe log open error");
         exit(EXIT_FAILURE);
     }
+    
+p_log = taskStruct->pipe_log_fd;
+    //n = proc_count + 1;
 
-    n = proc_count + 1;
-
-    if (pipe_init(n) == -1) {
+    if (pipe_init(taskStruct->total_proc) == -1) {
         exit(EXIT_FAILURE);
     }
 
-    for (local_id i = 1; i < n; i++) {
+    for (local_id i = 1; i < taskStruct->total_proc; i++) {
         switch (fork()) {
         case -1:
             perror("fork error");
@@ -80,7 +95,7 @@ int main(int argc, char * argv[])
         }
     }
 
-    //close_redundant_pipes(0);
+    close_redundant_pipes(0);
 
     //wait_child(STARTED);
     //log
@@ -94,17 +109,18 @@ int main(int argc, char * argv[])
         }
     }
 
-    close(ev_log);
-    close(p_log);
+    close(taskStruct->events_log_fd);
+    close(taskStruct->pipe_log_fd);
     return 0;
 }
 
 void child_handle(int id)
 {
     local_proc_id = id;
-    sprintf(log_msg, log_started_fmt, local_proc_id, getpid(), getppid());
+    taskStruct->local_pid = id;
+    sprintf(log_msg, log_started_fmt, taskStruct->local_pid, getpid(), getppid());
     printf(log_msg, NULL);
-    if (write(ev_log, log_msg, strlen(log_msg)) < 0) {
+    if (write(taskStruct->events_log_fd, log_msg, strlen(log_msg)) < 0) {
         perror("write ev_log error");
         exit(EXIT_FAILURE);
     }
@@ -118,25 +134,52 @@ void child_handle(int id)
 
     Message * msg = malloc(sizeof(Message));
     create_message(msg, STARTED, &messagePayload);
-    if (send_multicast(NULL, msg) < 0) {
-        perror("\tsend_multicast STARTED");
+    if (send_multicast(taskStruct, msg) < 0) 
+    {
+        perror("send_multicast STARTED");
         exit(EXIT_FAILURE);
     }
 
     //wait_other(STARTED);
-
+    /*local_id proc = 1;
+    local_id listened_proc = 0;
+    while (listened_proc + 1 < taskStruct->total_proc)
+    {
+        if (proc > taskStruct->total_proc) 
+        {
+            proc = 1;
+        }
+        if (proc == taskStruct->local_pid)
+        {
+            proc++;
+            continue;
+        }
+        if (receive(taskStruct, proc, msg) < 0)
+        {
+            perror("receive error");
+            proc++; //
+        } 
+        else
+        {
+            if ((msg->s_header).s_type == STARTED)
+            {
+                proc++;
+                listened_proc++;
+            } 
+        }
+    }*/
     /* log
-     * sprintf(log_msg, log_received_all_started_fmt, local_proc_id);
+     * sprintf(log_msg, log_received_all_started_fmt, taskStruct->local_pid);
      * printf(log_msg, NULL);
-     * write(ev_log, log_msg, strlen(log_msg));
+     * write(taskStruct->events_log_fd, log_msg, strlen(log_msg));
      */
 
     //second stage -- work
 
     //third stage -- done
-    sprintf(log_msg, log_done_fmt, local_proc_id);
+    sprintf(log_msg, log_done_fmt, taskStruct->local_pid);
     printf(log_msg, NULL);
-    if (write(ev_log, log_msg, strlen(log_msg)) < 0) {
+    if (write(taskStruct->events_log_fd, log_msg, strlen(log_msg)) < 0) {
         perror("write ev_log error");
         exit(EXIT_FAILURE);
     }
@@ -153,12 +196,12 @@ void child_handle(int id)
     free(msg);
     //wait_other(DONE);
     /* log
-     * spring(log_msg, log_received_all_done_fmt, local_proc_id);
+     * spring(log_msg, log_received_all_done_fmt, taskStruct->local_pid);
      * printf(log_msg, NULL);
-     * write(ev_log, log_msg, strlen(log_msg));
+     * write(taskStruct->events_log_fd, log_msg, strlen(log_msg));
      */
 
-    close(ev_log);
+    close(taskStruct->events_log_fd);
     exit(EXIT_SUCCESS);
 }
 

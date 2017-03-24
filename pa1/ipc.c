@@ -16,6 +16,7 @@ int send(void * self, local_id dst, const Message * msg)
         perror("send error");
         return -1;
     }
+    pipe_log(p_log, fd, "Process %d write to pipe with = %d\n");
     return 0;
 }
 
@@ -46,6 +47,7 @@ int receive(void * self, local_id from, Message * msg)
     if (read(fd, (MessageHeader *)msg + 1, (msg->s_header).s_payload_len) < 0) {
         return -1;
     }
+
     return 0;
 }
 
@@ -53,27 +55,13 @@ int receive_any(void * self, Message * msg)
 {
     while (1) {
         for (local_id from = 1; from < n; from++) {
-            if (receive(NULL, from, msg) < 0) {
+            if (receive(self, from, msg) < 0) {
                 return -1;
             }
             else {
-                //	if (self != NULL)
-                //			*self = (void*)from;
                 return 0;
             }
         }
     }
 }
 
-int wait_other()
-{
-    //char state[n] = {0};
-    char * state = calloc(n, sizeof(char));
-    state[0] = 1;
-    state[local_proc_id] = 1;
-
-    for (int id = 1; id < n; id++) {
-    }
-
-    return 0;
-}

@@ -9,7 +9,6 @@
 local_id n;
 int (*pipes)[2];
 extern local_id local_proc_id;
-extern int p_log;
 
 /* Pipe descriptors storage
  * Here is N processes
@@ -190,18 +189,13 @@ int get_sender(local_id from)
     return pipes[get_pipe(from, local_proc_id) + 1][0];
 }
 
-const char * const log_pipe_write_fmt =
-	"Process %d write to pipe with = %d\n";
 
-const char * const log_pipe_read_fmt =
-	"Process %d read from pipe with = %d\n";
-
-int pipe_log(const char * str, int fd)
+int pipe_log(int log_fd, int proc_fd, const char * str)
 {
     char log_msg[128];
 
-    sprintf(log_msg, str, local_proc_id, fd);
-    if (write(p_log, log_msg, strlen(log_msg)) < 0) {
+    sprintf(log_msg, str, local_proc_id, proc_fd);
+    if (write(log_fd, log_msg, strlen(log_msg)) < 0) {
         return -1;
     }
 
