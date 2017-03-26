@@ -15,7 +15,9 @@ int send(void * self, local_id dst, const Message * msg)
         perror("send error");
         return -1;
     }
-    pipe_log(task, task->pipe_log_fd, fd, "Process %d write to pipe with = %d\n");
+    
+    pipe_log(task, task->pipe_log_fd, fd, msg->s_payload,  
+            "Process %d write to pipe with = %d message: %s\n");
     return 0;
 }
 
@@ -48,8 +50,9 @@ int receive(void * self, local_id from, Message * msg)
     if (read(fd, (MessageHeader *)msg + 1, (msg->s_header).s_payload_len) < 0) {
         return -1;
     }
-//TODO: log receiving
 
+    pipe_log(task, task->pipe_log_fd, fd, msg->s_payload,
+            "Process %d read from pipe with = %d message: %s\n");
     return 0;
 }
 

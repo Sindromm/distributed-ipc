@@ -33,10 +33,10 @@ int create_message(Message * msg, MessageType type, const MessagePayload * paylo
 void child_handle(TaskStruct * task)
 {
     char log_msg[MAX_PAYLOAD_LEN];
-    sprintf(log_msg, log_started_fmt, task->local_pid, getpid(), getppid());
+    int symb = sprintf(log_msg, log_started_fmt, task->local_pid, getpid(), getppid());
     printf(log_msg, NULL);
 
-    if (write(task->events_log_fd, log_msg, strlen(log_msg)) < 0) {
+    if (write(task->events_log_fd, log_msg, symb) < 0) {
         perror("write ev_log error");
         exit(EXIT_FAILURE);
     }
@@ -46,7 +46,7 @@ void child_handle(TaskStruct * task)
     //first stage -- start
     MessagePayload payload;
     payload.s_data = log_msg;
-    payload.s_size = (uint16_t)strlen(log_msg);
+    payload.s_size = (uint16_t)symb;
 
     Message * msg = malloc(sizeof(Message));
     create_message(msg, STARTED, &payload);
@@ -59,16 +59,16 @@ void child_handle(TaskStruct * task)
     //second stage -- work
 
     //third stage -- done
-//TODO: FIX DAT SHIT
-    sprintf(log_msg, log_done_fmt, task->local_pid);
+
+    symb = sprintf(log_msg, log_done_fmt, task->local_pid);
     printf(log_msg, NULL);
-    if (write(task->events_log_fd, log_msg, strlen(log_msg)) < 0) {
+    if (write(task->events_log_fd, log_msg, symb) < 0) {
         perror("write ev_log error");
         exit(EXIT_FAILURE);
     }
 
     payload.s_data = log_msg;
-    payload.s_size = (uint16_t)strlen(log_msg);
+    payload.s_size = (uint16_t)symb;
 
     create_message(msg, DONE, &payload);
     if (send_multicast(task, msg) < 0) {
@@ -139,8 +139,17 @@ int main(int argc, char * argv[])
     close_redundant_pipes(&task);
 
     //wait_child(STARTED);
+    Message * msg = malloc(sizeof(Message));
+    for (local_id id = 1; id < task.total_proc; id++)
+    {
+        while (receive(&task, id, msg) < 0);
+    }
     //log
     //wait_child(DONE);
+    for (local_id id = 1; id < task.total_proc; id++)
+    {
+        while (receive(&task, id, msg) < 0);
+    }
     //log
 
     for (int i = 0; i < proc_count; i++) {
