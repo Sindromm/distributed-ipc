@@ -34,22 +34,18 @@ int wait_other(TaskStruct * task, MessageType type)
 {
     Message msg;
     local_id id = 1;
-    while(id < task->total_proc)
-    {
-        if (id == task->local_pid) 
-        {
+    while (id < task->total_proc) {
+        if (id == task->local_pid) {
             id++;
             continue;
         }
 
-        if (receive(task, id, &msg) < 0)
-        {
+        if (receive(task, id, &msg) < 0) {
             perror("receive from child error");
             return -1;
         }
-        else 
-        {
-            if ((msg.s_header).s_type == type){
+        else {
+            if ((msg.s_header).s_type == type) {
                 id++;
             }
         }
@@ -77,14 +73,12 @@ void child_handle(TaskStruct * task)
 
     Message * msg = malloc(sizeof(Message));
     create_message(msg, STARTED, &payload);
-    if (send_multicast(task, msg) < 0)
-    {
+    if (send_multicast(task, msg) < 0) {
         perror("send_multicast STARTED");
         exit(EXIT_FAILURE);
     }
 
-    if ( wait_other(task, STARTED) < 0)
-    {
+    if (wait_other(task, STARTED) < 0) {
         symb = sprintf(log_msg, "Process %1d: did'n receive all STARTED messages\n", task->local_pid);
         printf(log_msg, NULL);
         if (write(task->events_log_fd, log_msg, symb) < 0) {
@@ -92,8 +86,7 @@ void child_handle(TaskStruct * task)
             exit(EXIT_FAILURE);
         }
     }
-    else
-    {
+    else {
         symb = sprintf(log_msg, log_received_all_started_fmt, task->local_pid);
         printf(log_msg, NULL);
         if (write(task->events_log_fd, log_msg, symb) < 0) {
@@ -121,8 +114,7 @@ void child_handle(TaskStruct * task)
         exit(EXIT_FAILURE);
     }
 
-    if ( wait_other(task, DONE) < 0)
-    {
+    if (wait_other(task, DONE) < 0) {
         symb = sprintf(log_msg, "Process %1d: did'n receive all DONE messages\n", task->local_pid);
         printf(log_msg, NULL);
         if (write(task->events_log_fd, log_msg, symb) < 0) {
@@ -130,8 +122,7 @@ void child_handle(TaskStruct * task)
             exit(EXIT_FAILURE);
         }
     }
-    else
-    {
+    else {
         symb = sprintf(log_msg, log_received_all_done_fmt, task->local_pid);
         printf(log_msg, NULL);
         if (write(task->events_log_fd, log_msg, symb) < 0) {
@@ -205,8 +196,7 @@ int main(int argc, char * argv[])
     int symb;
     char log_msg[MAX_PAYLOAD_LEN];
 
-    if ( wait_other(&task, STARTED) < 0)
-    {
+    if (wait_other(&task, STARTED) < 0) {
         symb = sprintf(log_msg, "Process %1d: did'n receive all STARTED messages\n", task.local_pid);
         printf(log_msg, NULL);
         if (write(task.events_log_fd, log_msg, symb) < 0) {
@@ -214,8 +204,7 @@ int main(int argc, char * argv[])
             exit(EXIT_FAILURE);
         }
     }
-    else
-    {
+    else {
         symb = sprintf(log_msg, log_received_all_started_fmt, task.local_pid);
         printf(log_msg, NULL);
         if (write(task.events_log_fd, log_msg, symb) < 0) {
@@ -223,9 +212,8 @@ int main(int argc, char * argv[])
             exit(EXIT_FAILURE);
         }
     }
-    
-    if ( wait_other(&task, DONE) < 0)
-    {
+
+    if (wait_other(&task, DONE) < 0) {
         symb = sprintf(log_msg, "Process %1d: did'n receive all DONE messages\n", task.local_pid);
         printf(log_msg, NULL);
         if (write(task.events_log_fd, log_msg, symb) < 0) {
@@ -233,8 +221,7 @@ int main(int argc, char * argv[])
             exit(EXIT_FAILURE);
         }
     }
-    else
-    {
+    else {
         symb = sprintf(log_msg, log_received_all_done_fmt, task.local_pid);
         printf(log_msg, NULL);
         if (write(task.events_log_fd, log_msg, symb) < 0) {

@@ -15,9 +15,8 @@ int send(void * self, local_id dst, const Message * msg)
         perror("send error");
         return -1;
     }
-    
-    pipe_log(task, task->pipe_log_fd, dst, msg->s_payload,  
-            "Process %d write to pid = %d message: %s");
+
+    pipe_log(task, task->pipe_log_fd, dst, msg->s_payload, "%d => %d: %s");
     return 0;
 }
 
@@ -51,8 +50,7 @@ int receive(void * self, local_id from, Message * msg)
         return -1;
     }
 
-    pipe_log(task, task->pipe_log_fd, from, msg->s_payload,
-            "Process %d read from pid = %d message: %s");
+    pipe_log(task, task->pipe_log_fd, from, msg->s_payload, "%d <= %d: %s");
     return 0;
 }
 

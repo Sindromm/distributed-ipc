@@ -85,7 +85,6 @@ int pipe_init(TaskStruct * task)
         }
     }
 
-    test_pipes(task);
     return 0;
 }
 
