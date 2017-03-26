@@ -30,6 +30,33 @@ int create_message(Message * msg, MessageType type, const MessagePayload * paylo
     return 0;
 }
 
+int wait_other(TaskStruct * task, MessageType type)
+{
+    Message msg;
+    local_id id = 1;
+    while(id < task->total_proc)
+    {
+        if (id == task->local_pid) 
+        {
+            id++;
+            continue;
+        }
+
+        if (receive(task, id, &msg) < 0)
+        {
+            perror("receive from child error");
+            return -1;
+        }
+        else 
+        {
+            if ((msg.s_header).s_type == type){
+                id++;
+            }
+        }
+    }
+    return 0;
+}
+
 void child_handle(TaskStruct * task)
 {
     char log_msg[MAX_PAYLOAD_LEN];
@@ -56,6 +83,24 @@ void child_handle(TaskStruct * task)
         exit(EXIT_FAILURE);
     }
 
+    if ( wait_other(task, STARTED) < 0)
+    {
+        symb = sprintf(log_msg, "Process %1d: did'n receive all STARTED messages\n", task->local_pid);
+        printf(log_msg, NULL);
+        if (write(task->events_log_fd, log_msg, symb) < 0) {
+            perror("write ev_log error");
+            exit(EXIT_FAILURE);
+        }
+    }
+    else
+    {
+        symb = sprintf(log_msg, log_received_all_started_fmt, task->local_pid);
+        printf(log_msg, NULL);
+        if (write(task->events_log_fd, log_msg, symb) < 0) {
+            perror("write ev_log error");
+            exit(EXIT_FAILURE);
+        }
+    }
     //second stage -- work
 
     //third stage -- done
@@ -74,6 +119,25 @@ void child_handle(TaskStruct * task)
     if (send_multicast(task, msg) < 0) {
         perror("send_multicast DONE");
         exit(EXIT_FAILURE);
+    }
+
+    if ( wait_other(task, DONE) < 0)
+    {
+        symb = sprintf(log_msg, "Process %1d: did'n receive all DONE messages\n", task->local_pid);
+        printf(log_msg, NULL);
+        if (write(task->events_log_fd, log_msg, symb) < 0) {
+            perror("write ev_log error");
+            exit(EXIT_FAILURE);
+        }
+    }
+    else
+    {
+        symb = sprintf(log_msg, log_received_all_done_fmt, task->local_pid);
+        printf(log_msg, NULL);
+        if (write(task->events_log_fd, log_msg, symb) < 0) {
+            perror("write ev_log error");
+            exit(EXIT_FAILURE);
+        }
     }
 
     free(msg);
@@ -138,19 +202,46 @@ int main(int argc, char * argv[])
 
     close_redundant_pipes(&task);
 
-    //wait_child(STARTED);
-    Message * msg = malloc(sizeof(Message));
-    for (local_id id = 1; id < task.total_proc; id++)
+    int symb;
+    char log_msg[MAX_PAYLOAD_LEN];
+
+    if ( wait_other(&task, STARTED) < 0)
     {
-        while (receive(&task, id, msg) < 0);
+        symb = sprintf(log_msg, "Process %1d: did'n receive all STARTED messages\n", task.local_pid);
+        printf(log_msg, NULL);
+        if (write(task.events_log_fd, log_msg, symb) < 0) {
+            perror("write ev_log error");
+            exit(EXIT_FAILURE);
+        }
     }
-    //log
-    //wait_child(DONE);
-    for (local_id id = 1; id < task.total_proc; id++)
+    else
     {
-        while (receive(&task, id, msg) < 0);
+        symb = sprintf(log_msg, log_received_all_started_fmt, task.local_pid);
+        printf(log_msg, NULL);
+        if (write(task.events_log_fd, log_msg, symb) < 0) {
+            perror("write ev_log error");
+            exit(EXIT_FAILURE);
+        }
     }
-    //log
+    
+    if ( wait_other(&task, DONE) < 0)
+    {
+        symb = sprintf(log_msg, "Process %1d: did'n receive all DONE messages\n", task.local_pid);
+        printf(log_msg, NULL);
+        if (write(task.events_log_fd, log_msg, symb) < 0) {
+            perror("write ev_log error");
+            exit(EXIT_FAILURE);
+        }
+    }
+    else
+    {
+        symb = sprintf(log_msg, log_received_all_done_fmt, task.local_pid);
+        printf(log_msg, NULL);
+        if (write(task.events_log_fd, log_msg, symb) < 0) {
+            perror("write ev_log error");
+            exit(EXIT_FAILURE);
+        }
+    }
 
     for (int i = 0; i < proc_count; i++) {
         if (wait(NULL) == -1) {

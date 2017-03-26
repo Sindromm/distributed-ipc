@@ -17,7 +17,7 @@ int send(void * self, local_id dst, const Message * msg)
     }
     
     pipe_log(task, task->pipe_log_fd, fd, msg->s_payload,  
-            "Process %d write to pipe with = %d message: %s\n");
+            "Process %d write to pipe with = %d message: %s");
     return 0;
 }
 
@@ -52,7 +52,7 @@ int receive(void * self, local_id from, Message * msg)
     }
 
     pipe_log(task, task->pipe_log_fd, fd, msg->s_payload,
-            "Process %d read from pipe with = %d message: %s\n");
+            "Process %d read from pipe with = %d message: %s");
     return 0;
 }
 

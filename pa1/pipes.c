@@ -73,9 +73,9 @@ int pipe_init(TaskStruct * task)
     for (local_id i = 0; i < n; i++) {     //master_proc_id
         for (local_id j = 0; j < n; j++) { //slave_proc_id
             if (j > i) {
-                if (pipe2(pipes[fdp++], O_NONBLOCK) == -1)
+                if (pipe(pipes[fdp++]) == -1)
                     return -1;
-                if (pipe2(pipes[fdp++], O_NONBLOCK) == -1)
+                if (pipe(pipes[fdp++]) == -1)
                     return -1;
             }
             else if (j < i) {
