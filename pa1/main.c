@@ -46,7 +46,7 @@ void child_handle(TaskStruct * task)
     //first stage -- start
     MessagePayload payload;
     payload.s_data = log_msg;
-    payload.s_size = (uint16_t)symb;
+    payload.s_size = (uint16_t)symb + 1;
 
     Message * msg = malloc(sizeof(Message));
     create_message(msg, STARTED, &payload);
@@ -68,7 +68,7 @@ void child_handle(TaskStruct * task)
     }
 
     payload.s_data = log_msg;
-    payload.s_size = (uint16_t)symb;
+    payload.s_size = (uint16_t)symb + 1;
 
     create_message(msg, DONE, &payload);
     if (send_multicast(task, msg) < 0) {

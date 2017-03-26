@@ -206,7 +206,7 @@ int get_sender(TaskStruct * task, local_id from)
 
 int pipe_log(TaskStruct * task, int log_fd, int proc_fd, const char * msg, const char * str)
 {
-    char log_msg[128];
+    char log_msg[128] = { 0 };
 
     sprintf(log_msg, str, task->local_pid, proc_fd, msg);
     if (write(log_fd, log_msg, strlen(log_msg)) < 0) {
