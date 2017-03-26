@@ -19,5 +19,5 @@ int get_recipient(TaskStruct * task, local_id dst);
 
 int get_sender(TaskStruct * task, local_id from);
 
-int pipe_log(TaskStruct * task, int log_fd, int proc_fd, const char * msg, const char * str);
+int pipe_log(TaskStruct * task, int log_fd, int pid, const char * msg, const char * str);
 #endif

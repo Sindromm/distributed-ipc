@@ -204,11 +204,11 @@ int get_sender(TaskStruct * task, local_id from)
     return task->pipes[get_pipe(task, from, task->local_pid) + 1][0];
 }
 
-int pipe_log(TaskStruct * task, int log_fd, int proc_fd, const char * msg, const char * str)
+int pipe_log(TaskStruct * task, int log_fd, int pid, const char * msg, const char * str)
 {
     char log_msg[128] = { 0 };
 
-    sprintf(log_msg, str, task->local_pid, proc_fd, msg);
+    sprintf(log_msg, str, task->local_pid, pid, msg);
     if (write(log_fd, log_msg, strlen(log_msg)) < 0) {
         return -1;
     }
