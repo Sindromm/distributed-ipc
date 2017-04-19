@@ -62,7 +62,7 @@ int wait_other(TaskStruct * task, MessageType type)
 void child_handle(TaskStruct * task)
 {
     char log_msg[MAX_PAYLOAD_LEN];
-    int symb = sprintf(log_msg, log_started_fmt, task->local_pid, getpid(), getppid());
+    int symb = sprintf(log_msg, log_started_fmt, get_physical_time(), task->local_pid, getpid(), getppid(), task->balance);
     printf(log_msg, NULL);
 
     if (write(task->events_log_fd, log_msg, symb) < 0) {
@@ -93,7 +93,7 @@ void child_handle(TaskStruct * task)
         }
     }
     else {
-        symb = sprintf(log_msg, log_received_all_started_fmt, task->local_pid);
+        symb = sprintf(log_msg, log_received_all_started_fmt, task->local_pid, task->balance);
         printf(log_msg, NULL);
         if (write(task->events_log_fd, log_msg, symb) < 0) {
             perror("write ev_log error");
@@ -104,7 +104,7 @@ void child_handle(TaskStruct * task)
 
     //third stage -- done
 
-    symb = sprintf(log_msg, log_done_fmt, task->local_pid);
+    symb = sprintf(log_msg, log_done_fmt, get_physical_time(), task->local_pid, task->balance);
     printf(log_msg, NULL);
     if (write(task->events_log_fd, log_msg, symb) < 0) {
         perror("write ev_log error");
@@ -129,7 +129,7 @@ void child_handle(TaskStruct * task)
         }
     }
     else {
-        symb = sprintf(log_msg, log_received_all_done_fmt, task->local_pid);
+        symb = sprintf(log_msg, log_received_all_done_fmt, task->local_pid, task->balance);
         printf(log_msg, NULL);
         if (write(task->events_log_fd, log_msg, symb) < 0) {
             perror("write ev_log error");
@@ -166,6 +166,12 @@ int main(int argc, char * argv[])
         exit(EXIT_FAILURE);
     }
 
+#define ARG_OFFSET 3
+    if (proc_count + ARG_OFFSET != argc) {
+        fprintf(stderr, "Bad list of balances for given amount of processes\n");
+        exit(EXIT_FAILURE);
+    }
+
     TaskStruct task;
     task.total_proc = proc_count + 1;
     task.local_pid = 0;
@@ -190,6 +196,7 @@ int main(int argc, char * argv[])
             exit(EXIT_FAILURE);
         case 0:
             task.local_pid = i;
+            task.balance = atoi(argv[i + ARG_OFFSET - 1]);
             child_handle(&task);
             break;
         default:
@@ -203,7 +210,7 @@ int main(int argc, char * argv[])
     char log_msg[MAX_PAYLOAD_LEN];
 
     if (wait_other(&task, STARTED) < 0) {
-        symb = sprintf(log_msg, "Process %1d: did'n receive all STARTED messages\n", task.local_pid);
+        symb = sprintf(log_msg, "Process %1d: didn't receive all STARTED messages\n", task.local_pid);
         printf(log_msg, NULL);
         if (write(task.events_log_fd, log_msg, symb) < 0) {
             perror("write ev_log error");
@@ -211,7 +218,7 @@ int main(int argc, char * argv[])
         }
     }
     else {
-        symb = sprintf(log_msg, log_received_all_started_fmt, task.local_pid);
+        symb = sprintf(log_msg, log_received_all_started_fmt, task.local_pid, task.balance);
         printf(log_msg, NULL);
         if (write(task.events_log_fd, log_msg, symb) < 0) {
             perror("write ev_log error");
@@ -228,7 +235,7 @@ int main(int argc, char * argv[])
         }
     }
     else {
-        symb = sprintf(log_msg, log_received_all_done_fmt, task.local_pid);
+        symb = sprintf(log_msg, log_received_all_done_fmt, task.local_pid, task.balance);
         printf(log_msg, NULL);
         if (write(task.events_log_fd, log_msg, symb) < 0) {
             perror("write ev_log error");

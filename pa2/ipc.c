@@ -16,7 +16,7 @@ int send(void * self, local_id dst, const Message * msg)
         return -1;
     }
 
-    pipe_log(task, task->pipe_log_fd, dst, msg->s_payload, "%d => %d: %s");
+    pipe_log(task, dst, msg->s_payload, "%d => %d: %s");
     return 0;
 }
 
@@ -50,7 +50,7 @@ int receive(void * self, local_id from, Message * msg)
         return -1;
     }
 
-    pipe_log(task, task->pipe_log_fd, from, msg->s_payload, "%d <= %d: %s");
+    pipe_log(task, from, msg->s_payload, "%d <= %d: %s");
     return 0;
 }
 

@@ -73,9 +73,9 @@ int pipe_init(TaskStruct * task)
     for (local_id i = 0; i < n; i++) {     //master_proc_id
         for (local_id j = 0; j < n; j++) { //slave_proc_id
             if (j > i) {
-                if (pipe2(pipes[fdp++], O_NONBLOCK | O_DIRECT) == -1)
+                if (pipe2(pipes[fdp++], O_NONBLOCK) == -1)
                     return -1;
-                if (pipe2(pipes[fdp++], O_NONBLOCK | O_DIRECT) == -1)
+                if (pipe2(pipes[fdp++], O_NONBLOCK) == -1)
                     return -1;
             }
             else if (j < i) {
@@ -203,12 +203,12 @@ int get_sender(TaskStruct * task, local_id from)
     return task->pipes[get_pipe(task, from, task->local_pid) + 1][0];
 }
 
-int pipe_log(TaskStruct * task, int log_fd, int pid, const char * msg, const char * str)
+int pipe_log(TaskStruct * task, int pid, const char * msg, const char * str)
 {
     char log_msg[128] = { 0 };
 
-    sprintf(log_msg, str, task->local_pid, pid, msg);
-    if (write(log_fd, log_msg, strlen(log_msg)) < 0) {
+    sprintf(log_msg, str, task->local_pid, pid, msg, task->balance);
+    if (write(task->pipe_log_fd, log_msg, strlen(log_msg)) < 0) {
         return -1;
     }
 

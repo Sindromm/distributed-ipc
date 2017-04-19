@@ -2,6 +2,7 @@
 #define __IFMO_DISTRIBUTED_CLASS_PROC__H
 
 #include "ipc.h"
+#include "banking.h"
 
 
 #define LOG_FILE_FLAGS O_CREAT | O_WRONLY | O_APPEND | O_TRUNC
@@ -13,6 +14,8 @@ struct TaskStruct
     local_id local_pid;
     local_id total_proc;
     int (*pipes)[2];
+
+    balance_t balance;
 
     /*
      * LOGGING
