@@ -13,8 +13,7 @@
 #include "pipes.h"
 #include "proc.h"
 
-void transfer(void * parent_data, local_id src, local_id dst,
-              balance_t amount)
+void transfer(void * parent_data, local_id src, local_id dst, balance_t amount)
 {
     // student, please implement me
 }
@@ -26,16 +25,17 @@ int create_message(Message * msg, MessageType type, const MessagePayload * paylo
     }
 
     MessageHeader header;
-    header.s_magic       = MESSAGE_MAGIC;
-    header.s_type        = type;
+    header.s_magic = MESSAGE_MAGIC;
+    header.s_type = type;
     header.s_payload_len = payload->s_size;
-    header.s_local_time  = time(NULL);
+    header.s_local_time = time(NULL);
 
     msg->s_header = header;
     memcpy(msg->s_payload, payload->s_data, payload->s_size);
     return 0;
 }
 
+/*
 int wait_other(TaskStruct * task, MessageType type)
 {
     Message msg;
@@ -143,6 +143,100 @@ void child_handle(TaskStruct * task)
     close(task->pipe_log_fd);
     exit(EXIT_SUCCESS);
 }
+*/
+
+/*
+ * Bank department FSM
+ */
+
+enum department_state {
+    d_initial = 0,
+    d_send_started,
+    d_handle_messages,
+    d_handle_out_transfer,
+    d_handle_in_transfer,
+    d_handle_stop,
+    d_send_transfer,
+    d_send_ack,
+    d_send_done,
+    d_finish
+};
+typedef enum department_state department_state;
+
+void c_handle(TaskStruct * this)
+{
+    department_state state = d_initial;
+
+    switch (state) {
+    case d_initial:
+        break;
+    case d_send_started:
+        break;
+    case d_handle_messages:
+        break;
+    case d_handle_out_transfer:
+        break;
+    case d_handle_in_transfer:
+        break;
+    case d_handle_stop:
+        break;
+    case d_send_transfer:
+        break;
+    case d_send_ack:
+        break;
+    case d_send_done:
+        break;
+    case d_finish:
+        break;
+    }
+}
+
+/*
+ * FSM for transfer manage
+ */
+
+enum manager_state {
+    m_initial = 0,
+    m_handle_messages,
+    m_handle_started,
+    m_handle_done,
+    m_handle_transfer_ack,
+    m_handle_balance_history,
+    m_all_started,
+    m_all_done,
+    m_all_balances,
+    m_finish
+};
+typedef enum manager_state manager_state;
+
+void k_handle(TaskStruct * this)
+{
+
+    manager_state state = m_initial;
+
+    switch (state) {
+    case m_initial:
+        break;
+    case m_handle_messages:
+        break;
+    case m_handle_started:
+        break;
+    case m_handle_done:
+        break;
+    case m_handle_transfer_ack:
+        break;
+    case m_handle_balance_history:
+        break;
+    case m_all_started:
+        break;
+    case m_all_done:
+        break;
+    case m_all_balances:
+        break;
+    case m_finish:
+        break;
+    }
+}
 
 int main(int argc, char * argv[])
 {
@@ -197,7 +291,7 @@ int main(int argc, char * argv[])
         case 0:
             task.local_pid = i;
             task.balance = atoi(argv[i + ARG_OFFSET - 1]);
-            child_handle(&task);
+            c_handle(&task);
             break;
         default:
             break;
@@ -206,6 +300,9 @@ int main(int argc, char * argv[])
 
     close_redundant_pipes(&task);
 
+    k_handle(&task);
+
+    /*
     int symb;
     char log_msg[MAX_PAYLOAD_LEN];
 
@@ -249,6 +346,7 @@ int main(int argc, char * argv[])
             exit(EXIT_FAILURE);
         }
     }
+    */
 
     close(task.events_log_fd);
     close(task.pipe_log_fd);
