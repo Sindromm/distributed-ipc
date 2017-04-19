@@ -28,7 +28,7 @@ int create_message(Message * msg, MessageType type, const MessagePayload * paylo
     header.s_magic = MESSAGE_MAGIC;
     header.s_type = type;
     header.s_payload_len = payload->s_size;
-    header.s_local_time = time(NULL);
+    header.s_local_time = get_physical_time();
 
     msg->s_header = header;
     memcpy(msg->s_payload, payload->s_data, payload->s_size);
@@ -156,6 +156,7 @@ enum department_state {
     d_handle_out_transfer,
     d_handle_in_transfer,
     d_handle_stop,
+    d_handle_done,
     d_send_transfer,
     d_send_ack,
     d_send_done,
@@ -167,27 +168,54 @@ void c_handle(TaskStruct * this)
 {
     department_state state = d_initial;
 
-    switch (state) {
-    case d_initial:
-        break;
-    case d_send_started:
-        break;
-    case d_handle_messages:
-        break;
-    case d_handle_out_transfer:
-        break;
-    case d_handle_in_transfer:
-        break;
-    case d_handle_stop:
-        break;
-    case d_send_transfer:
-        break;
-    case d_send_ack:
-        break;
-    case d_send_done:
-        break;
-    case d_finish:
-        break;
+    Message * msg = malloc(sizeof(Message));
+
+    int next = 1;
+    while (next) {
+        switch (state) {
+        case d_initial: {
+        } break;
+        case d_send_started: {
+        } break;
+        case d_handle_messages: {
+            int status = receive_any(this, msg);
+            if (RC_OK(status)) {
+                switch (msg->s_header.s_type) {
+                case DONE:
+                    state = d_handle_done;
+                    break;
+                case STOP:
+                    state = d_handle_stop;
+                    break;
+                case TRANSFER: {
+                    TransferOrder * order = (TransferOrder *)msg->s_payload;
+                    if (order->s_src == this->local_pid) {
+                        state = d_handle_out_transfer;
+                    }
+                    else {
+                        state = d_handle_in_transfer;
+                    }
+                } break;
+                }
+            }
+        } break;
+        case d_handle_out_transfer: {
+        } break;
+        case d_handle_in_transfer: {
+        } break;
+        case d_handle_stop: {
+        } break;
+        case d_handle_done: {
+        } break;
+        case d_send_transfer: {
+        } break;
+        case d_send_ack: {
+        } break;
+        case d_send_done: {
+        } break;
+        case d_finish: {
+        } break;
+        }
     }
 }
 
@@ -200,7 +228,7 @@ enum manager_state {
     m_handle_messages,
     m_handle_started,
     m_handle_done,
-    m_handle_transfer_ack,
+    m_handle_ack,
     m_handle_balance_history,
     m_all_started,
     m_all_done,
@@ -211,30 +239,52 @@ typedef enum manager_state manager_state;
 
 void k_handle(TaskStruct * this)
 {
-
     manager_state state = m_initial;
 
-    switch (state) {
-    case m_initial:
-        break;
-    case m_handle_messages:
-        break;
-    case m_handle_started:
-        break;
-    case m_handle_done:
-        break;
-    case m_handle_transfer_ack:
-        break;
-    case m_handle_balance_history:
-        break;
-    case m_all_started:
-        break;
-    case m_all_done:
-        break;
-    case m_all_balances:
-        break;
-    case m_finish:
-        break;
+    Message * msg = malloc(sizeof(Message));
+
+    int next = 1;
+    while (next) {
+        switch (state) {
+        case m_initial: {
+            state = m_handle_messages;
+        } break;
+        case m_handle_messages: {
+            int status = receive_any(this, msg);
+            if (RC_OK(status)) {
+                switch (msg->s_header.s_type) {
+                case STARTED:
+                    state = m_handle_started;
+                    break;
+                case DONE:
+                    state = m_handle_done;
+                    break;
+                case ACK:
+                    state = m_handle_ack;
+                    break;
+                case BALANCE_HISTORY:
+                    state = m_handle_balance_history;
+                    break;
+                }
+            }
+        } break;
+        case m_handle_started: {
+        } break;
+        case m_handle_done: {
+        } break;
+        case m_handle_ack: {
+        } break;
+        case m_handle_balance_history: {
+        } break;
+        case m_all_started: {
+        } break;
+        case m_all_done: {
+        } break;
+        case m_all_balances: {
+        } break;
+        case m_finish: {
+        } break;
+        }
     }
 }
 

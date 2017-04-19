@@ -7,6 +7,8 @@
 
 #define LOG_FILE_FLAGS O_CREAT | O_WRONLY | O_APPEND | O_TRUNC
 #define MODE 0666
+#define RC_OK(x) !!(x)
+#define RC_FAIL(x) !(RC_OK(x))
 
 typedef struct TaskStruct TaskStruct;
 struct TaskStruct

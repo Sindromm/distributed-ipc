@@ -41,13 +41,15 @@ int receive(void * self, local_id from, Message * msg)
     if (fd < 0) {
         return -1;
     }
-
-    if (read(fd, msg, sizeof(MessageHeader)) < 0) {
-        return -1;
+    
+    int err = read(fd, msg, sizeof(MessageHeader));
+    if (err < 0) {
+        return err;
     }
 
-    if (read(fd, (MessageHeader *)msg + 1, (msg->s_header).s_payload_len) < 0) {
-        return -1;
+    err = read(fd, (MessageHeader *)msg + 1, (msg->s_header).s_payload_len);
+    if (err < 0) {
+        return err;
     }
 
     pipe_log(task, from, msg->s_payload, "%d <= %d: %s");
@@ -59,11 +61,13 @@ int receive_any(void * self, Message * msg)
     TaskStruct * task = self;
     while (1) {
         for (local_id from = 1; from < task->total_proc; from++) {
-            if (receive(self, from, msg) < 0) {
-                return -1;
-            }
-            else {
+            int err = receive(self, from, msg);
+            if (err >= 0) {
                 return 0;
+            }
+
+            if (from == task->total_proc) {
+                from = 1;
             }
         }
     }
