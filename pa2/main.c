@@ -13,6 +13,9 @@
 #include "pipes.h"
 #include "proc.h"
 
+int event_log(TaskStruct * this, const char * msg, int length)
+{ return write(this->events_log_fd, msg, length); }
+
 void transfer(void * parent_data, local_id src, local_id dst, balance_t amount)
 {
     // student, please implement me
@@ -164,7 +167,7 @@ enum department_state {
 };
 typedef enum department_state department_state;
 
-void c_handle(TaskStruct * this)
+void department_fsm(TaskStruct * this)
 {
     department_state state = d_initial;
 
@@ -174,8 +177,31 @@ void c_handle(TaskStruct * this)
     while (next) {
         switch (state) {
         case d_initial: {
+            state = d_send_started;
         } break;
         case d_send_started: {
+            char log_msg[MAX_PAYLOAD_LEN];
+            int symb = sprintf(log_msg,
+                               log_started_fmt,
+                               get_physical_time(),
+                               this->local_pid,
+                               getpid(), getppid(),
+                               this->balance);
+            printf(log_msg, NULL);
+
+            if (event_log(this, log_msg, symb) < 0) {
+                perror("write ev_log error");
+                //TODO: would be better to introduce d_failed_finish
+                exit(EXIT_FAILURE);
+            }
+            MessagePayload payload;
+            payload.s_data = log_msg;
+            payload.s_size = (uint16_t)symb + 1;
+            create_message(msg, STARTED, &payload);
+
+            send_multicast(this, msg);
+
+            state = d_handle_messages;
         } break;
         case d_handle_messages: {
             int status = receive_any(this, msg);
@@ -237,7 +263,7 @@ enum manager_state {
 };
 typedef enum manager_state manager_state;
 
-void k_handle(TaskStruct * this)
+void manager_fsm(TaskStruct * this)
 {
     manager_state state = m_initial;
 
@@ -341,7 +367,7 @@ int main(int argc, char * argv[])
         case 0:
             task.local_pid = i;
             task.balance = atoi(argv[i + ARG_OFFSET - 1]);
-            c_handle(&task);
+            department_fsm(&task);
             break;
         default:
             break;
@@ -350,7 +376,7 @@ int main(int argc, char * argv[])
 
     close_redundant_pipes(&task);
 
-    k_handle(&task);
+    manager_fsm(&task);
 
     /*
     int symb;
