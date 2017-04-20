@@ -18,15 +18,19 @@ int event_log(TaskStruct * this, const char * msg, int length)
 
 int create_message(Message * msg, MessageType type, const MessagePayload * payload)
 {
-    if (payload->s_size > MAX_PAYLOAD_LEN) {
-        return 1;
-    }
-
     MessageHeader header;
     header.s_magic = MESSAGE_MAGIC;
     header.s_type = type;
-    header.s_payload_len = payload->s_size;
     header.s_local_time = get_physical_time();
+
+    if (payload == NULL) {
+        return 0;
+    }
+
+    if (payload->s_size > MAX_PAYLOAD_LEN) {
+        return 1;
+    }
+    header.s_payload_len = payload->s_size;
 
     msg->s_header = header;
     memcpy(msg->s_payload, payload->s_data, payload->s_size);
@@ -155,8 +159,7 @@ void department_fsm(TaskStruct * this)
             state = d_handle_messages;
         } break;
         case d_send_ack: {
-            MessagePayload payload = (MessagePayload) { 0, 0 };
-            if (RC_FAIL(create_message(msg, ACK, &payload))) {
+            if (RC_FAIL(create_message(msg, ACK, NULL))) {
                 state = d_failed_finish;
                 continue;
             }
@@ -190,9 +193,11 @@ enum manager_state {
     m_handle_done,
     m_handle_ack,
     m_handle_balance_history,
+    m_send_stop,
     m_all_started,
     m_all_done,
     m_all_balances,
+    m_failed_finish,
     m_finish
 };
 typedef enum manager_state manager_state;
@@ -249,7 +254,14 @@ void manager_fsm(TaskStruct * this)
         case m_all_started: {
             bank_robbery(this, this->total_proc);
 
-            state = m_handle_messages;
+            state = m_send_stop;
+        } break;
+        case m_send_stop: {
+            if (RC_FAIL(create_message(msg, STOP, NULL))) {
+                printf("%s[%d]: Can not create message", __FILE__, __LINE__);
+                state = m_failed_finish;
+                continue;
+            }
         } break;
         case m_all_done: {
         } break;
@@ -257,6 +269,9 @@ void manager_fsm(TaskStruct * this)
             //TODO: here all balances should be collected so need to call
             print_history(&all_history);
             state = m_finish;
+        } break;
+        case m_failed_finish: {
+            exit(EXIT_FAILURE);
         } break;
         case m_finish: {
             next = 0;
