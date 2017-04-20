@@ -328,8 +328,5 @@ int main(int argc, char * argv[])
     close_redundant_pipes(&task);
 
     manager_fsm(&task);
-
-    close(task.events_log_fd);
-    close(task.pipe_log_fd);
     return 0;
 }
