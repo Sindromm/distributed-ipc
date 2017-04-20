@@ -55,6 +55,18 @@ void transfer(void * parent_data, local_id src, local_id dst, balance_t amount)
     send(this, dst, &msg);
 }
 
+timestamp_t push_history(BalanceHistory * history, timestamp_t last_time, balance_t balance, balance_t incoming)
+{
+    timestamp_t time = get_physical_time();
+    if (time - last_time > 1) {
+        for (timestamp_t i = last_time; i < time; i++) {
+            history->s_history[i] = (BalanceState){ balance, i, 0 };
+        }
+    }
+    history->s_history[time] = (BalanceState){ balance + incoming , time, 0};
+    return time;
+}
+
 /*
  * Bank department FSM
  */
@@ -70,6 +82,7 @@ enum department_state {
     d_send_transfer,
     d_send_ack,
     d_send_done,
+    d_all_done,
     d_failed_finish,
     d_finish
 };
@@ -81,6 +94,8 @@ void department_fsm(TaskStruct * this)
 
     Message * msg;
     char log_msg[MAX_PAYLOAD_LEN];
+
+    int done_n = 0;
 
     int next = 1;
     while (next) {
@@ -129,33 +144,35 @@ void department_fsm(TaskStruct * this)
                     break;
                 case TRANSFER: {
                     TransferOrder * order = (TransferOrder *)msg->s_payload;
-                    if (order->s_src == this->local_pid) {
-                        state = d_handle_out_transfer;
-                    }
-                    else {
-                        state = d_handle_in_transfer;
-                    }
+                    state = (order->s_src == this->local_pid)?d_handle_out_transfer:d_handle_in_transfer;
                 } break;
                 }
             }
         } break;
         case d_handle_out_transfer: {
-            //TODO: history
+            TransferOrder * order = (TransferOrder *)msg->s_payload;
+            this->last_time = push_history(&this->history, this->last_time, this->balance, -order->s_amount);
+            this->balance -= order->s_amount;
 
             state = d_send_transfer;
         } break;
         case d_handle_in_transfer: {
-            //TODO: history
+            TransferOrder * order = (TransferOrder *)msg->s_payload;
+            this->last_time = push_history(&this->history, this->last_time, this->balance, order->s_amount);
+            this->balance += order->s_amount;
 
             state = d_send_ack;
         } break;
         case d_handle_stop: {
-
-            state = d_handle_messages;
+            state = d_send_done;
         } break;
         case d_handle_done: {
-
             state = d_handle_messages;
+
+            done_n++;
+            if (done_n == this->total_proc) {
+                state = d_all_done;
+            }
         } break;
         case d_send_transfer: {
             TransferOrder * order = (TransferOrder *)msg->s_payload;
@@ -174,11 +191,30 @@ void department_fsm(TaskStruct * this)
             state = d_handle_messages;
         } break;
         case d_send_done: {
+            if (RC_FAIL(create_message(msg, DONE, NULL))) {
+                printf("%s[%d]: Can not create message", __FILE__, __LINE__);
+                state = d_failed_finish;
+                continue;
+            }
 
+            send_multicast(this, msg);
             state = d_handle_messages;
         } break;
-        case d_failed_finish: {
+        case d_all_done: {
+            state = d_finish;
 
+            int balance_size = sizeof(BalanceHistory) - sizeof(this->history.s_history)
+                + sizeof(BalanceState) * this->history.s_history_len;
+            MessagePayload payload = (MessagePayload) { (char *)&this->history, balance_size };
+            if (RC_FAIL(create_message(msg, BALANCE_HISTORY, &payload))) {
+                printf("%s[%d]: Can not create message", __FILE__, __LINE__);
+                state = d_failed_finish;
+                continue;
+            }
+
+            send(this, 0 /* is always manager */, msg);
+        } break;
+        case d_failed_finish: {
             exit(EXIT_FAILURE);
         } break;
         case d_finish: {
@@ -360,6 +396,7 @@ int main(int argc, char * argv[])
             exit(EXIT_FAILURE);
         case 0:
             task.local_pid = i;
+            task.history.s_id = i;
             task.balance = atoi(argv[i + ARG_OFFSET - 1]);
             department_fsm(&task);
             break;
