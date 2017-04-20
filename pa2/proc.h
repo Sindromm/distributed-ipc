@@ -18,6 +18,8 @@ struct TaskStruct
     int (*pipes)[2];
 
     balance_t balance;
+    timestamp_t last_time;
+    BalanceHistory history;
 
     /*
      * LOGGING
