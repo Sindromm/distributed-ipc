@@ -103,6 +103,7 @@ void department_fsm(TaskStruct * this)
             if (RC_FAIL(event_log(this, log_msg, symb))) {
                 perror("write ev_log error");
                 state = d_failed_finish;
+                continue;
             }
             MessagePayload payload;
             payload.s_data = log_msg;
@@ -214,6 +215,9 @@ void manager_fsm(TaskStruct * this)
     Message * msg;
     AllHistory all_history = { 0 };
 
+    int started_n = 0;
+    int done_n = 0;
+
     int next = 1;
     while (next) {
         switch (state) {
@@ -241,22 +245,34 @@ void manager_fsm(TaskStruct * this)
             }
         } break;
         case m_handle_started: {
-            //TODO: count started
-
             state = m_handle_messages;
+
+            started_n++;
+            if (started_n == this->total_proc) {
+                state = m_all_started;
+            }
         } break;
         case m_handle_done: {
-            //TODO: count done
-
             state = m_handle_messages;
+
+            done_n++;
+            if (done_n == this->total_proc) {
+                state = m_all_done;
+            }
         } break;
         case m_handle_ack: {
-
+            //Don't need to to anything here
             state = m_handle_messages;
         } break;
         case m_handle_balance_history: {
-
             state = m_handle_messages;
+
+            BalanceHistory * history = (BalanceHistory *)msg->s_payload;
+            all_history.s_history[all_history.s_history_len++] = *history;
+
+            if (all_history.s_history_len == this->total_proc) {
+                state = m_all_balances;
+            }
         } break;
         case m_all_started: {
             bank_robbery(this, this->total_proc);
@@ -269,11 +285,17 @@ void manager_fsm(TaskStruct * this)
                 state = m_failed_finish;
                 continue;
             }
+
+            send_multicast(this, msg);
+            state = m_handle_messages;
         } break;
         case m_all_done: {
+            //Now, I guess, need to receive all balances
+            state = m_handle_messages;
         } break;
         case m_all_balances: {
             print_history(&all_history);
+
             state = m_finish;
         } break;
         case m_failed_finish: {
@@ -327,7 +349,7 @@ int main(int argc, char * argv[])
         exit(EXIT_FAILURE);
     }
 
-    if (pipe_init(&task) == -1) {
+    if (RC_FAIL(pipe_init(&task))) {
         exit(EXIT_FAILURE);
     }
 
