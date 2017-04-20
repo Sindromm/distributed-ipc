@@ -86,8 +86,9 @@ void department_fsm(TaskStruct * this)
     while (next) {
         switch (state) {
         case d_initial: {
-            msg   = malloc(sizeof(Message));
             close_redundant_pipes(this);
+
+            msg   = malloc(sizeof(Message));
             state = d_send_started;
         } break;
         case d_send_started: {
@@ -106,8 +107,11 @@ void department_fsm(TaskStruct * this)
             MessagePayload payload;
             payload.s_data = log_msg;
             payload.s_size = (uint16_t)symb + 1;
-            create_message(msg, STARTED, &payload);
-
+            if (RC_FAIL(create_message(msg, STARTED, &payload))) {
+                printf("%s[%d]: Can not create message", __FILE__, __LINE__);
+                state = d_failed_finish;
+                continue;
+            }
             send_multicast(this, msg);
 
             state = d_handle_messages;
@@ -160,6 +164,7 @@ void department_fsm(TaskStruct * this)
         } break;
         case d_send_ack: {
             if (RC_FAIL(create_message(msg, ACK, NULL))) {
+                printf("%s[%d]: Can not create message", __FILE__, __LINE__);
                 state = d_failed_finish;
                 continue;
             }
@@ -236,10 +241,12 @@ void manager_fsm(TaskStruct * this)
             }
         } break;
         case m_handle_started: {
+            //TODO: count started
 
             state = m_handle_messages;
         } break;
         case m_handle_done: {
+            //TODO: count done
 
             state = m_handle_messages;
         } break;
@@ -266,7 +273,6 @@ void manager_fsm(TaskStruct * this)
         case m_all_done: {
         } break;
         case m_all_balances: {
-            //TODO: here all balances should be collected so need to call
             print_history(&all_history);
             state = m_finish;
         } break;
