@@ -16,7 +16,7 @@
 int event_log(TaskStruct * this, const char * msg, int length)
 {
     write(STDOUT_FILENO, msg, length);
-    return (write(this->events_log_fd, msg, length) < 0)?-1:0;;
+    return (write(this->events_log_fd, msg, length) < 0) ? -1 : 0;
 }
 
 int create_message(Message * msg, MessageType type, const MessagePayload * payload)
@@ -46,7 +46,7 @@ void transfer(void * parent_data, local_id src, local_id dst, balance_t amount)
 {
     TaskStruct * this = (TaskStruct *)parent_data;
 
-    TransferOrder order = (TransferOrder){ src, dst, amount };
+    TransferOrder order = (TransferOrder){src, dst, amount};
     MessagePayload payload;
     payload.s_data = (char *)&order;
     payload.s_size = sizeof(TransferOrder);
@@ -65,10 +65,10 @@ timestamp_t push_history(BalanceHistory * history, timestamp_t last_time, balanc
     timestamp_t time = get_physical_time();
     if (time - last_time > 1) {
         for (timestamp_t i = last_time; i < time; i++) {
-            history->s_history[i] = (BalanceState){ balance, i, 0 };
+            history->s_history[i] = (BalanceState){balance, i, 0};
         }
     }
-    history->s_history[time] = (BalanceState){ balance + incoming , time, 0};
+    history->s_history[time] = (BalanceState){balance + incoming, time, 0};
     return time;
 }
 
@@ -106,17 +106,20 @@ void department_fsm(TaskStruct * this)
     while (next) {
         switch (state) {
         case d_initial: {
+            puts("case d_initial: {");
             close_redundant_pipes(this);
 
-            msg   = malloc(sizeof(Message));
+            msg = malloc(sizeof(Message));
             state = d_send_started;
         } break;
         case d_send_started: {
+            puts("case d_send_started: {");
             int symb = sprintf(log_msg,
                                log_started_fmt,
                                get_physical_time(),
                                this->local_pid,
-                               getpid(), getppid(),
+                               getpid(),
+                               getppid(),
                                this->balance);
 
             if (RC_FAIL(event_log(this, log_msg, symb))) {
@@ -137,7 +140,9 @@ void department_fsm(TaskStruct * this)
             state = d_handle_messages;
         } break;
         case d_handle_messages: {
+            puts("case d_handle_messages: {");
             int status = receive_any(this, msg);
+            printf("Status %d\n", status);
             if (RC_OK(status)) {
                 switch (msg->s_header.s_type) {
                 case DONE:
@@ -148,12 +153,13 @@ void department_fsm(TaskStruct * this)
                     break;
                 case TRANSFER: {
                     TransferOrder * order = (TransferOrder *)msg->s_payload;
-                    state = (order->s_src == this->local_pid)?d_handle_out_transfer:d_handle_in_transfer;
+                    state = (order->s_src == this->local_pid) ? d_handle_out_transfer : d_handle_in_transfer;
                 } break;
                 }
             }
         } break;
         case d_handle_out_transfer: {
+            puts("case d_handle_out_transfer: {");
             TransferOrder * order = (TransferOrder *)msg->s_payload;
             this->last_time = push_history(&this->history, this->last_time, this->balance, -order->s_amount);
             this->balance -= order->s_amount;
@@ -173,6 +179,7 @@ void department_fsm(TaskStruct * this)
             state = d_send_transfer;
         } break;
         case d_handle_in_transfer: {
+            puts("case d_handle_in_transfer: {");
             TransferOrder * order = (TransferOrder *)msg->s_payload;
             this->last_time = push_history(&this->history, this->last_time, this->balance, order->s_amount);
             this->balance += order->s_amount;
@@ -192,9 +199,11 @@ void department_fsm(TaskStruct * this)
             state = d_send_ack;
         } break;
         case d_handle_stop: {
+            puts("case d_handle_stop: {");
             state = d_send_done;
         } break;
         case d_handle_done: {
+            puts("case d_handle_done: {");
             state = d_handle_messages;
 
             done_n++;
@@ -203,12 +212,14 @@ void department_fsm(TaskStruct * this)
             }
         } break;
         case d_send_transfer: {
+            puts("case d_send_transfer: {");
             TransferOrder * order = (TransferOrder *)msg->s_payload;
             transfer(this, order->s_src, order->s_dst, order->s_amount);
 
             state = d_handle_messages;
         } break;
         case d_send_ack: {
+            puts("case d_send_ack: {");
             if (RC_FAIL(create_message(msg, ACK, NULL))) {
                 printf("%s[%d]: Can not create message\n", __FILE__, __LINE__);
                 state = d_failed_finish;
@@ -219,6 +230,7 @@ void department_fsm(TaskStruct * this)
             state = d_handle_messages;
         } break;
         case d_send_done: {
+            puts("case d_send_done: {");
             int symb = sprintf(log_msg,
                                log_done_fmt,
                                get_physical_time(),
@@ -240,6 +252,7 @@ void department_fsm(TaskStruct * this)
             state = d_handle_messages;
         } break;
         case d_all_done: {
+            puts("case d_all_done: {");
             state = d_finish;
 
             int symb = sprintf(log_msg,
@@ -251,9 +264,8 @@ void department_fsm(TaskStruct * this)
                 state = d_failed_finish;
             }
 
-            int balance_size = sizeof(BalanceHistory) - sizeof(this->history.s_history)
-                + sizeof(BalanceState) * this->history.s_history_len;
-            MessagePayload payload = (MessagePayload) { (char *)&this->history, balance_size };
+            int balance_size = sizeof(BalanceHistory) - sizeof(this->history.s_history) + sizeof(BalanceState) * this->history.s_history_len;
+            MessagePayload payload = (MessagePayload){(char *)&this->history, balance_size};
             if (RC_FAIL(create_message(msg, BALANCE_HISTORY, &payload))) {
                 printf("%s[%d]: Can not create message\n", __FILE__, __LINE__);
                 state = d_failed_finish;
@@ -263,9 +275,11 @@ void department_fsm(TaskStruct * this)
             send(this, 0 /* is always manager */, msg);
         } break;
         case d_failed_finish: {
+            puts("case d_failed_finish: {");
             exit(EXIT_FAILURE);
         } break;
         case d_finish: {
+            puts("case d_finish: {");
             next = 0;
         } break;
         }
@@ -297,7 +311,7 @@ void manager_fsm(TaskStruct * this)
     manager_state state = m_initial;
 
     Message * msg;
-    AllHistory all_history = { 0 };
+    AllHistory all_history = {0};
     char log_msg[MAX_PAYLOAD_LEN];
 
     int started_n = 0;
@@ -308,7 +322,7 @@ void manager_fsm(TaskStruct * this)
         switch (state) {
         case m_initial: {
             puts("case m_initial: {");
-            msg   = malloc(sizeof(Message));
+            msg = malloc(sizeof(Message));
             state = m_handle_messages;
         } break;
         case m_handle_messages: {
@@ -449,7 +463,7 @@ int main(int argc, char * argv[])
         exit(EXIT_FAILURE);
     }
 
-    TaskStruct task = { 0 };
+    TaskStruct task = {0};
     task.total_proc = proc_count + 1;
     task.local_pid = 0;
 
