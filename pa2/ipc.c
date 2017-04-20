@@ -16,9 +16,7 @@ int send(void * self, local_id dst, const Message * msg)
         return -1;
     }
 
-    //TODO: need to be reworked to support
-    //empty payload and TRANSFER, BALANCE_HISTORY messages
-    pipe_log(task, dst, msg->s_payload, "%d => %d: %s");
+    pipe_log(task, dst, msg, OUTCOMING);
     return 0;
 }
 
@@ -55,7 +53,7 @@ int receive(void * self, local_id from, Message * msg)
         return err;
     }
 
-    pipe_log(task, from, msg->s_payload, "%d <= %d: %s");
+    pipe_log(task, from, msg, INCOMING);
     return 0;
 }
 

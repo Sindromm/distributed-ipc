@@ -6,7 +6,6 @@
 
 #include "pipes.h"
 
-
 /* Pipe descriptors storage
  * Here is N processes
  * Need to create (N - 1) for each
@@ -50,7 +49,6 @@
  *    +----+----+
  */
 
-
 int test_pipes(TaskStruct * task)
 {
     int n = task->total_proc;
@@ -67,8 +65,8 @@ int test_pipes(TaskStruct * task)
 int pipe_init(TaskStruct * task)
 {
     int n = task->total_proc;
-    task->pipes = (int (*)[2])malloc(sizeof(int) * 2 * 2 * n * (n - 1));
-    int (*pipes)[2] = task->pipes;
+    task->pipes = (int(*)[2])malloc(sizeof(int) * 2 * 2 * n * (n - 1));
+    int(*pipes)[2] = task->pipes;
     int fdp = 0;
     for (local_id i = 0; i < n; i++) {     //master_proc_id
         for (local_id j = 0; j < n; j++) { //slave_proc_id
@@ -123,7 +121,7 @@ int close_rw_pipes(TaskStruct * task)
 int close_redundant_pipes(TaskStruct * task)
 {
     local_id max_pid = task->total_proc;
-    int (*pipes)[2] = task->pipes;
+    int(*pipes)[2] = task->pipes;
     int block_size = 2 * (max_pid - 1);
 
     for (local_id pid = 0; pid < max_pid; pid++) {
@@ -155,7 +153,7 @@ int close_redundant_pipes(TaskStruct * task)
 
             //Close redundant fdps related to communication between
             //pid and set of all processes except this one
-            if (close(pipes[fdp    ][0]) || close(pipes[fdp    ][1]) ||
+            if (close(pipes[fdp][0]) || close(pipes[fdp][1]) ||
                 close(pipes[fdp + 1][0]) || close(pipes[fdp + 1][1])) {
                 perror("close_redundant_pipes close error");
             }
@@ -203,12 +201,48 @@ int get_sender(TaskStruct * task, local_id from)
     return task->pipes[get_pipe(task, from, task->local_pid) + 1][0];
 }
 
-int pipe_log(TaskStruct * task, int pid, const char * msg, const char * str)
+/**
+ * @param direction 0 - if incoming, 1 - if outcoming
+ */
+int pipe_log(TaskStruct * task, local_id pid, const Message * msg, int direction)
 {
-    char log_msg[128] = { 0 };
+    char log_msg[128] = {0};
+    int len = sprintf(log_msg, "%d %c %d", task->local_pid, (direction) ? '>' : '<', pid);
 
-    sprintf(log_msg, str, task->local_pid, pid, msg, task->balance);
-    if (RC_FAIL(write(task->pipe_log_fd, log_msg, strlen(log_msg)))) {
+    switch (msg->s_header.s_type) {
+    case STARTED: ///< message with string (doesn't include trailing '\0')
+        len += sprintf(log_msg + len, "STARTED: %s", msg->s_payload);
+        break;
+    case DONE: ///< message with string (doesn't include trailing '\0')
+        len += sprintf(log_msg + len, "DONE: %s", msg->s_payload);
+        break;
+    case ACK: ///< empty message
+        len += sprintf(log_msg + len, "ACK\n");
+        break;
+    case STOP: ///< empty message
+        len += sprintf(log_msg + len, "STOP\n");
+        break;
+    case TRANSFER: ///< message with TransferOrder
+    {
+        const TransferOrder * order = (const TransferOrder *)msg->s_payload;
+        len += sprintf(log_msg + len, "TRANSFER: [src=%d, dst=%d, amount=%d]\n", order->s_src, order->s_dst, order->s_amount);
+    } break;
+    case BALANCE_HISTORY: ///< message with BalanceHistory
+    {
+        const BalanceHistory * history = (const BalanceHistory *)msg->s_payload;
+        len += sprintf(log_msg + len, "BALANCE_HISTORY: [id=%d, len=%d]\n", history->s_id, history->s_history_len);
+    } break;
+    case CS_REQUEST: ///< empty message
+        len += sprintf(log_msg + len, "CS_REQUEST\n");
+        break;
+    case CS_REPLY: ///< empty message
+        len += sprintf(log_msg + len, "CS_REPLY\n");
+        break;
+    case CS_RELEASE: ///< empty message
+        len += sprintf(log_msg + len, "CS_RELEASE\n");
+        break;
+    }
+    if (RC_FAIL(write(task->pipe_log_fd, log_msg, len))) {
         return -1;
     }
 
