@@ -15,8 +15,8 @@
 
 int event_log(TaskStruct * this, const char * msg, int length)
 {
-    puts(msg);
-    return write(this->events_log_fd, msg, length);
+    write(STDOUT_FILENO, msg, length);
+    return (write(this->events_log_fd, msg, length) < 0)?-1:0;;
 }
 
 int create_message(Message * msg, MessageType type, const MessagePayload * payload)
@@ -27,6 +27,8 @@ int create_message(Message * msg, MessageType type, const MessagePayload * paylo
     header.s_local_time = get_physical_time();
 
     if (payload == NULL) {
+        msg->s_header.s_payload_len = 0;
+        msg->s_header = header;
         return 0;
     }
 
@@ -51,7 +53,7 @@ void transfer(void * parent_data, local_id src, local_id dst, balance_t amount)
     Message msg;
 
     if (RC_FAIL(create_message(&msg, TRANSFER, &payload))) {
-        printf("%s[%d]: Can not create message", __FILE__, __LINE__);
+        printf("%s[%d]: Can not create message\n", __FILE__, __LINE__);
         exit(EXIT_FAILURE);
     }
 
@@ -126,11 +128,11 @@ void department_fsm(TaskStruct * this)
             payload.s_data = log_msg;
             payload.s_size = (uint16_t)symb + 1;
             if (RC_FAIL(create_message(msg, STARTED, &payload))) {
-                printf("%s[%d]: Can not create message", __FILE__, __LINE__);
+                printf("%s[%d]: Can not create message\n", __FILE__, __LINE__);
                 state = d_failed_finish;
                 continue;
             }
-            send_multicast(this, msg);
+            send(this, 0 /* is always manager */, msg);
 
             state = d_handle_messages;
         } break;
@@ -196,7 +198,7 @@ void department_fsm(TaskStruct * this)
             state = d_handle_messages;
 
             done_n++;
-            if (done_n == this->total_proc) {
+            if (done_n == this->total_proc - 1) {
                 state = d_all_done;
             }
         } break;
@@ -208,7 +210,7 @@ void department_fsm(TaskStruct * this)
         } break;
         case d_send_ack: {
             if (RC_FAIL(create_message(msg, ACK, NULL))) {
-                printf("%s[%d]: Can not create message", __FILE__, __LINE__);
+                printf("%s[%d]: Can not create message\n", __FILE__, __LINE__);
                 state = d_failed_finish;
                 continue;
             }
@@ -229,7 +231,7 @@ void department_fsm(TaskStruct * this)
             }
 
             if (RC_FAIL(create_message(msg, DONE, NULL))) {
-                printf("%s[%d]: Can not create message", __FILE__, __LINE__);
+                printf("%s[%d]: Can not create message\n", __FILE__, __LINE__);
                 state = d_failed_finish;
                 continue;
             }
@@ -253,7 +255,7 @@ void department_fsm(TaskStruct * this)
                 + sizeof(BalanceState) * this->history.s_history_len;
             MessagePayload payload = (MessagePayload) { (char *)&this->history, balance_size };
             if (RC_FAIL(create_message(msg, BALANCE_HISTORY, &payload))) {
-                printf("%s[%d]: Can not create message", __FILE__, __LINE__);
+                printf("%s[%d]: Can not create message\n", __FILE__, __LINE__);
                 state = d_failed_finish;
                 continue;
             }
@@ -305,10 +307,12 @@ void manager_fsm(TaskStruct * this)
     while (next) {
         switch (state) {
         case m_initial: {
+            puts("case m_initial: {");
             msg   = malloc(sizeof(Message));
             state = m_handle_messages;
         } break;
         case m_handle_messages: {
+            puts("case m_handle_messages: {");
             int status = receive_any(this, msg);
             if (RC_OK(status)) {
                 switch (msg->s_header.s_type) {
@@ -328,26 +332,30 @@ void manager_fsm(TaskStruct * this)
             }
         } break;
         case m_handle_started: {
+            puts("case m_handle_started: {");
             state = m_handle_messages;
 
             started_n++;
-            if (started_n == this->total_proc) {
+            if (started_n == this->total_proc - 1) {
                 state = m_all_started;
             }
         } break;
         case m_handle_done: {
+            puts("case m_handle_done: {");
             state = m_handle_messages;
 
             done_n++;
-            if (done_n == this->total_proc) {
+            if (done_n == this->total_proc - 1) {
                 state = m_all_done;
             }
         } break;
         case m_handle_ack: {
+            puts("case m_handle_ack: {");
             //Don't need to to anything here
             state = m_handle_messages;
         } break;
         case m_handle_balance_history: {
+            puts("case m_handle_balance_history: {");
             state = m_handle_messages;
 
             BalanceHistory * history = (BalanceHistory *)msg->s_payload;
@@ -358,9 +366,10 @@ void manager_fsm(TaskStruct * this)
             }
         } break;
         case m_all_started: {
+            puts("case m_all_started: {");
             state = m_send_stop;
 
-            bank_robbery(this, this->total_proc);
+            bank_robbery(this, this->total_proc - 1);
             int symb = sprintf(log_msg,
                                log_received_all_started_fmt,
                                get_physical_time(),
@@ -371,8 +380,9 @@ void manager_fsm(TaskStruct * this)
             }
         } break;
         case m_send_stop: {
+            puts("case m_send_stop: {");
             if (RC_FAIL(create_message(msg, STOP, NULL))) {
-                printf("%s[%d]: Can not create message", __FILE__, __LINE__);
+                printf("%s[%d]: Can not create message\n", __FILE__, __LINE__);
                 state = m_failed_finish;
                 continue;
             }
@@ -381,6 +391,7 @@ void manager_fsm(TaskStruct * this)
             state = m_handle_messages;
         } break;
         case m_all_done: {
+            puts("case m_all_done: {");
             int symb = sprintf(log_msg,
                                log_received_all_done_fmt,
                                get_physical_time(),
@@ -393,14 +404,17 @@ void manager_fsm(TaskStruct * this)
             state = m_handle_messages;
         } break;
         case m_all_balances: {
+            puts("case m_all_balances: {");
             print_history(&all_history);
 
             state = m_finish;
         } break;
         case m_failed_finish: {
+            puts("case m_failed_finish: {");
             exit(EXIT_FAILURE);
         } break;
         case m_finish: {
+            puts("case m_finish: {");
             next = 0;
         } break;
         }
@@ -439,16 +453,17 @@ int main(int argc, char * argv[])
     task.total_proc = proc_count + 1;
     task.local_pid = 0;
 
-    if (RC_FAIL(task.events_log_fd = open(events_log, LOG_FILE_FLAGS, MODE))) {
+    if ((task.events_log_fd = open(events_log, LOG_FILE_FLAGS, MODE)) < 0) {
         perror("events log open error");
         exit(EXIT_FAILURE);
     }
-    if (RC_FAIL(task.pipe_log_fd = open(pipes_log, LOG_FILE_FLAGS, MODE))) {
+    if ((task.pipe_log_fd = open(pipes_log, LOG_FILE_FLAGS, MODE)) < 0) {
         perror("pipe log open error");
         exit(EXIT_FAILURE);
     }
 
     if (RC_FAIL(pipe_init(&task))) {
+        perror("pipe init failed");
         exit(EXIT_FAILURE);
     }
 
@@ -457,12 +472,13 @@ int main(int argc, char * argv[])
         case -1:
             perror("fork error");
             exit(EXIT_FAILURE);
-        case 0:
-            task.local_pid = i;
-            task.history.s_id = i;
-            task.balance = atoi(argv[i + ARG_OFFSET - 1]);
-            department_fsm(&task);
-            break;
+        case 0: {
+            TaskStruct this = task;
+            this.local_pid = i;
+            this.history.s_id = i;
+            this.balance = atoi(argv[i + ARG_OFFSET - 1]);
+            department_fsm(&this);
+        } break;
         default:
             break;
         }
@@ -471,5 +487,12 @@ int main(int argc, char * argv[])
     close_redundant_pipes(&task);
 
     manager_fsm(&task);
+
+    for (local_id i = 0; i < task.total_proc; i++) {
+        if (wait(NULL) == -1) {
+            perror("wait error");
+            exit(EXIT_FAILURE);
+        }
+    }
     return 0;
 }

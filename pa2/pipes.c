@@ -155,6 +155,7 @@ int close_redundant_pipes(TaskStruct * task)
             //pid and set of all processes except this one
             if (close(pipes[fdp][0]) || close(pipes[fdp][1]) ||
                 close(pipes[fdp + 1][0]) || close(pipes[fdp + 1][1])) {
+                printf("%d\n", task->local_pid);
                 perror("close_redundant_pipes close error");
             }
 
@@ -207,7 +208,7 @@ int get_sender(TaskStruct * task, local_id from)
 int pipe_log(TaskStruct * task, local_id pid, const Message * msg, int direction)
 {
     char log_msg[128] = {0};
-    int len = sprintf(log_msg, "%d %c %d", task->local_pid, (direction) ? '>' : '<', pid);
+    int len = sprintf(log_msg, "[%d %c %d] ", task->local_pid, (direction) ? '>' : '<', pid);
 
     switch (msg->s_header.s_type) {
     case STARTED: ///< message with string (doesn't include trailing '\0')

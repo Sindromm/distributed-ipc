@@ -11,7 +11,7 @@ int send(void * self, local_id dst, const Message * msg)
 {
     TaskStruct * task = self;
     int fd = get_recipient(task, dst);
-    if (fd < 0 || RC_FAIL(write(fd, msg, sizeof(MessageHeader) + (msg->s_header).s_payload_len))) {
+    if (fd < 0 || write(fd, msg, sizeof(MessageHeader) + (msg->s_header).s_payload_len) < 0) {
         perror("send error");
         return -1;
     }
@@ -49,7 +49,7 @@ int receive(void * self, local_id from, Message * msg)
     }
 
     err = read(fd, (MessageHeader *)msg + 1, (msg->s_header).s_payload_len);
-    if (RC_FAIL(err)) {
+    if (err < 0) {
         return err;
     }
 
