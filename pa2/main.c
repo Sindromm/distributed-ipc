@@ -14,7 +14,10 @@
 #include "proc.h"
 
 int event_log(TaskStruct * this, const char * msg, int length)
-{ return write(this->events_log_fd, msg, length); }
+{
+    puts(msg);
+    return write(this->events_log_fd, msg, length);
+}
 
 int create_message(Message * msg, MessageType type, const MessagePayload * payload)
 {
@@ -113,7 +116,6 @@ void department_fsm(TaskStruct * this)
                                this->local_pid,
                                getpid(), getppid(),
                                this->balance);
-            printf(log_msg, NULL);
 
             if (RC_FAIL(event_log(this, log_msg, symb))) {
                 perror("write ev_log error");
@@ -154,12 +156,36 @@ void department_fsm(TaskStruct * this)
             this->last_time = push_history(&this->history, this->last_time, this->balance, -order->s_amount);
             this->balance -= order->s_amount;
 
+            int symb = sprintf(log_msg,
+                               log_transfer_out_fmt,
+                               get_physical_time(),
+                               order->s_src,
+                               order->s_amount,
+                               order->s_dst);
+            if (RC_FAIL(event_log(this, log_msg, symb))) {
+                perror("write ev_log error");
+                state = d_failed_finish;
+                continue;
+            }
+
             state = d_send_transfer;
         } break;
         case d_handle_in_transfer: {
             TransferOrder * order = (TransferOrder *)msg->s_payload;
             this->last_time = push_history(&this->history, this->last_time, this->balance, order->s_amount);
             this->balance += order->s_amount;
+
+            int symb = sprintf(log_msg,
+                               log_transfer_in_fmt,
+                               get_physical_time(),
+                               order->s_dst,
+                               order->s_amount,
+                               order->s_src);
+            if (RC_FAIL(event_log(this, log_msg, symb))) {
+                perror("write ev_log error");
+                state = d_failed_finish;
+                continue;
+            }
 
             state = d_send_ack;
         } break;
@@ -191,6 +217,17 @@ void department_fsm(TaskStruct * this)
             state = d_handle_messages;
         } break;
         case d_send_done: {
+            int symb = sprintf(log_msg,
+                               log_done_fmt,
+                               get_physical_time(),
+                               this->local_pid,
+                               this->balance);
+            if (RC_FAIL(event_log(this, log_msg, symb))) {
+                perror("write ev_log error");
+                state = d_failed_finish;
+                continue;
+            }
+
             if (RC_FAIL(create_message(msg, DONE, NULL))) {
                 printf("%s[%d]: Can not create message", __FILE__, __LINE__);
                 state = d_failed_finish;
@@ -202,6 +239,15 @@ void department_fsm(TaskStruct * this)
         } break;
         case d_all_done: {
             state = d_finish;
+
+            int symb = sprintf(log_msg,
+                               log_received_all_done_fmt,
+                               get_physical_time(),
+                               this->local_pid);
+            if (RC_FAIL(event_log(this, log_msg, symb))) {
+                perror("event_log failed");
+                state = d_failed_finish;
+            }
 
             int balance_size = sizeof(BalanceHistory) - sizeof(this->history.s_history)
                 + sizeof(BalanceState) * this->history.s_history_len;
@@ -250,6 +296,7 @@ void manager_fsm(TaskStruct * this)
 
     Message * msg;
     AllHistory all_history = { 0 };
+    char log_msg[MAX_PAYLOAD_LEN];
 
     int started_n = 0;
     int done_n = 0;
@@ -311,9 +358,17 @@ void manager_fsm(TaskStruct * this)
             }
         } break;
         case m_all_started: {
-            bank_robbery(this, this->total_proc);
-
             state = m_send_stop;
+
+            bank_robbery(this, this->total_proc);
+            int symb = sprintf(log_msg,
+                               log_received_all_started_fmt,
+                               get_physical_time(),
+                               this->local_pid);
+            if (RC_FAIL(event_log(this, log_msg, symb))) {
+                perror("event_log failed");
+                state = m_failed_finish;
+            }
         } break;
         case m_send_stop: {
             if (RC_FAIL(create_message(msg, STOP, NULL))) {
@@ -326,7 +381,15 @@ void manager_fsm(TaskStruct * this)
             state = m_handle_messages;
         } break;
         case m_all_done: {
-            //Now, I guess, need to receive all balances
+            int symb = sprintf(log_msg,
+                               log_received_all_done_fmt,
+                               get_physical_time(),
+                               this->local_pid);
+            if (RC_FAIL(event_log(this, log_msg, symb))) {
+                perror("event_log failed");
+                state = m_failed_finish;
+            }
+
             state = m_handle_messages;
         } break;
         case m_all_balances: {
