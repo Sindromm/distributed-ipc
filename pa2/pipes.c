@@ -109,7 +109,7 @@ int close_rw_pipes(TaskStruct * task)
     int block_end = block + block_size;
 
     for (int i = block; i < block_end; i++) {
-        if (close(((i % 2) ? task->pipes[i][1] : task->pipes[i][0]))) {
+        if (close(task->pipes[i][i % 2])) {
             perror("close_rw_pipes close error");
             return 1;
         }
