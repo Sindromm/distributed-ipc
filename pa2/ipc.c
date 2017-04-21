@@ -44,8 +44,8 @@ int receive(void * self, local_id from, Message * msg)
     }
 
     int err = read(fd, msg, sizeof(MessageHeader));
-    if (err < 0) {
-        return err;
+    if (err <= 0) {
+        return -1;
     }
 
     err = read(fd, msg->s_payload, msg->s_header.s_payload_len);
