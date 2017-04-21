@@ -57,7 +57,7 @@ void transfer(void * parent_data, local_id src, local_id dst, balance_t amount)
         exit(EXIT_FAILURE);
     }
 
-    send(this, dst, &msg);
+    send(this, src, &msg);
 }
 
 timestamp_t push_history(BalanceHistory * history, timestamp_t last_time, balance_t balance, balance_t incoming)
@@ -69,6 +69,7 @@ timestamp_t push_history(BalanceHistory * history, timestamp_t last_time, balanc
         }
     }
     history->s_history[time] = (BalanceState){balance + incoming, time, 0};
+    history->s_history_len = time;
     return time;
 }
 
@@ -127,9 +128,7 @@ void department_fsm(TaskStruct * this)
                 state = d_failed_finish;
                 continue;
             }
-            MessagePayload payload;
-            payload.s_data = log_msg;
-            payload.s_size = (uint16_t)symb + 1;
+            MessagePayload payload = (MessagePayload) { log_msg, symb + 1 };
             if (RC_FAIL(create_message(msg, STARTED, &payload))) {
                 printf("%s[%d]: Can not create message\n", __FILE__, __LINE__);
                 state = d_failed_finish;
@@ -142,7 +141,6 @@ void department_fsm(TaskStruct * this)
         case d_handle_messages: {
             puts("case d_handle_messages: {");
             int status = receive_any(this, msg);
-            printf("Status %d\n", status);
             if (RC_OK(status)) {
                 switch (msg->s_header.s_type) {
                 case DONE:
@@ -207,15 +205,14 @@ void department_fsm(TaskStruct * this)
             state = d_handle_messages;
 
             done_n++;
-            if (done_n == this->total_proc - 1) {
+            if (done_n == this->total_proc - 2) { //except manager and himself
                 state = d_all_done;
             }
         } break;
         case d_send_transfer: {
             puts("case d_send_transfer: {");
             TransferOrder * order = (TransferOrder *)msg->s_payload;
-            transfer(this, order->s_src, order->s_dst, order->s_amount);
-
+            send(this, order->s_dst, msg); //retransmit trasfer message
             state = d_handle_messages;
         } break;
         case d_send_ack: {
@@ -242,7 +239,8 @@ void department_fsm(TaskStruct * this)
                 continue;
             }
 
-            if (RC_FAIL(create_message(msg, DONE, NULL))) {
+            MessagePayload payload = (MessagePayload) { log_msg, symb + 1 };
+            if (RC_FAIL(create_message(msg, DONE, &payload))) {
                 printf("%s[%d]: Can not create message\n", __FILE__, __LINE__);
                 state = d_failed_finish;
                 continue;
@@ -273,6 +271,7 @@ void department_fsm(TaskStruct * this)
             }
 
             send(this, 0 /* is always manager */, msg);
+            state = d_finish;
         } break;
         case d_failed_finish: {
             puts("case d_failed_finish: {");
@@ -280,7 +279,7 @@ void department_fsm(TaskStruct * this)
         } break;
         case d_finish: {
             puts("case d_finish: {");
-            next = 0;
+            exit(EXIT_SUCCESS);
         } break;
         }
     }
@@ -429,7 +428,7 @@ void manager_fsm(TaskStruct * this)
         } break;
         case m_finish: {
             puts("case m_finish: {");
-            next = 0;
+            exit(EXIT_SUCCESS);
         } break;
         }
     }
