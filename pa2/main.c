@@ -13,6 +13,8 @@
 #include "pipes.h"
 #include "proc.h"
 
+#define PA2_MAX(x,y) ((x > y)?x:y)
+
 int event_log(TaskStruct * this, const char * msg, int length)
 {
     write(STDOUT_FILENO, msg, length);
@@ -57,7 +59,14 @@ void transfer(void * parent_data, local_id src, local_id dst, balance_t amount)
         exit(EXIT_FAILURE);
     }
 
-    send(this, src, &msg);
+    //Fix: serialize transfers, enqueue if not allowed to send
+    if (this->transfer_queue_ack == 1) {
+        this->transfer_queue_ack = 0;
+        send(this, src, &msg);
+    }
+    else {
+        this->transfer_queue[this->transfer_queue_len++] = msg;
+    }
 }
 
 timestamp_t push_history(BalanceHistory * history, timestamp_t last_time, balance_t balance, balance_t incoming, timestamp_t time)
@@ -66,7 +75,7 @@ timestamp_t push_history(BalanceHistory * history, timestamp_t last_time, balanc
         history->s_history[i] = (BalanceState){balance, i, 0};
     }
     history->s_history[time] = (BalanceState){balance + incoming, time, 0};
-    history->s_history_len = time + 1;
+    history->s_history_len = PA2_MAX(history->s_history_len, time + 1);
     return time;
 }
 
@@ -152,6 +161,7 @@ void department_fsm(TaskStruct * this)
         } break;
         case d_handle_out_transfer: {
             TransferOrder * order = (TransferOrder *)msg->s_payload;
+            msg->s_header.s_local_time = get_physical_time();
             timestamp_t time = msg->s_header.s_local_time;
             this->last_time = push_history(&this->history, this->last_time, this->balance, -order->s_amount, time);
             this->balance -= order->s_amount;
@@ -311,6 +321,7 @@ void manager_fsm(TaskStruct * this)
         case m_initial: {
             msg = malloc(sizeof(Message));
             state = m_handle_messages;
+            this->transfer_queue_ack = 1;
         } break;
         case m_handle_messages: {
             int status = receive_any(this, msg);
@@ -348,8 +359,16 @@ void manager_fsm(TaskStruct * this)
             }
         } break;
         case m_handle_ack: {
-            //Don't need to to anything here
             state = m_handle_messages;
+            const Message * msg = &this->transfer_queue[this->transfer_queue_index];
+            const TransferOrder * order = (const TransferOrder *)msg->s_payload;
+            this->transfer_queue_index++;
+            this->transfer_queue_ack = 1;
+            if (this->transfer_queue_index > this->transfer_queue_len) {
+                state = m_send_stop;
+                continue;
+            }
+            send(this, order->s_src, msg);
         } break;
         case m_handle_balance_history: {
             state = m_handle_messages;
@@ -362,7 +381,7 @@ void manager_fsm(TaskStruct * this)
             }
         } break;
         case m_all_started: {
-            state = m_send_stop;
+            state = m_handle_messages;
 
             int symb = sprintf(log_msg,
                                log_received_all_started_fmt,

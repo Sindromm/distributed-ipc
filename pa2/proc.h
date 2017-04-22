@@ -21,6 +21,12 @@ struct TaskStruct
     timestamp_t last_time;
     BalanceHistory history;
 
+
+    int transfer_queue_ack;
+    int transfer_queue_len;
+    int transfer_queue_index;
+    Message transfer_queue[MAX_T + 1];
+
     /*
      * LOGGING
      */
