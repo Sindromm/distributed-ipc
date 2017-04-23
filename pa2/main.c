@@ -424,6 +424,12 @@ void manager_fsm(TaskStruct * this)
             exit(EXIT_FAILURE);
         } break;
         case m_finish: {
+            for (local_id i = 0; i < this->total_proc - 1; i++) {
+                if (wait(NULL) == -1) {
+                    perror("wait error");
+                    exit(EXIT_FAILURE);
+                }
+            }
             exit(EXIT_SUCCESS);
         } break;
         }
@@ -497,11 +503,5 @@ int main(int argc, char * argv[])
 
     manager_fsm(&task);
 
-    for (local_id i = 0; i < task.total_proc; i++) {
-        if (wait(NULL) == -1) {
-            perror("wait error");
-            exit(EXIT_FAILURE);
-        }
-    }
     return 0;
 }
