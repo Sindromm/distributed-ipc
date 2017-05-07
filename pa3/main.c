@@ -84,13 +84,16 @@ void transfer(void * parent_data, local_id src, local_id dst, balance_t amount)
     }
 }
 
-timestamp_t push_history(BalanceHistory * history, timestamp_t last_time, balance_t balance, balance_t incoming, timestamp_t time)
+timestamp_t push_history(BalanceHistory * history, timestamp_t last_time, timestamp_t send_time, balance_t balance, balance_t incoming, timestamp_t time)
 {
     for (timestamp_t i = last_time; i < time; i++) {
         history->s_history[i].s_balance = balance;
         history->s_history[i].s_time = i;
     }
-    history->s_history[time] = (BalanceState){balance + incoming, time, (incoming < 0?-incoming:0)};
+    for (timestamp_t i = send_time; i < time; i++) {
+        history->s_history[i].s_balance_pending_in = incoming;
+    }
+    history->s_history[time] = (BalanceState){balance + incoming, time, 0};
     history->s_history_len = PA3_MAX(history->s_history_len, time + 1);
     return time;
 }
@@ -180,9 +183,9 @@ void department_fsm(TaskStruct * this)
         } break;
         case d_handle_out_transfer: {
             TransferOrder * order = (TransferOrder *)msg->s_payload;
-            msg->s_header.s_local_time = get_lamport_time();
+            msg->s_header.s_local_time = time_inc();
             timestamp_t time = msg->s_header.s_local_time;
-            this->last_time = push_history(&this->history, this->last_time, this->balance, -order->s_amount, time);
+            this->last_time = push_history(&this->history, this->last_time, msg->s_header.s_local_time, this->balance, -order->s_amount, time);
             this->balance -= order->s_amount;
 
             int symb = sprintf(log_msg,
@@ -201,8 +204,8 @@ void department_fsm(TaskStruct * this)
         } break;
         case d_handle_in_transfer: {
             TransferOrder * order = (TransferOrder *)msg->s_payload;
-            timestamp_t time = get_lamport_time();
-            this->last_time = push_history(&this->history, this->last_time, this->balance, order->s_amount, time);
+            timestamp_t time = time_inc();
+            this->last_time = push_history(&this->history, this->last_time, msg->s_header.s_local_time, this->balance, order->s_amount, time);
             this->balance += order->s_amount;
 
             int symb = sprintf(log_msg,
@@ -282,7 +285,7 @@ void department_fsm(TaskStruct * this)
             }
 
             //refresh history
-            this->last_time = push_history(&this->history, this->last_time, this->balance, 0, time);
+            this->last_time = push_history(&this->history, this->last_time, get_lamport_time(), this->balance, 0, time);
 
             int balance_size = sizeof(BalanceHistory) - sizeof(this->history.s_history) + sizeof(BalanceState) * this->history.s_history_len;
             MessagePayload payload = (MessagePayload){(char *)&this->history, balance_size};
@@ -408,7 +411,7 @@ void manager_fsm(TaskStruct * this)
 
             int symb = sprintf(log_msg,
                                log_received_all_started_fmt,
-                               get_lamport_time(),
+                               time_inc(),
                                this->local_pid);
             if (RC_FAIL(event_log(this, log_msg, symb))) {
                 perror("event_log failed");
