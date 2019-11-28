@@ -64,11 +64,12 @@ int receive_any(void * self, Message * msg)
         for (local_id from = 0; from < task->total_proc; from++) {
             int err = receive(self, from, msg);
             if (RC_OK(err)) {
-                return 0;
+                return from;
             }
             if (from == task->total_proc) {
                 from = 1;
             }
+            sleep(0);
         }
     }
 }

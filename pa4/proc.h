@@ -10,6 +10,8 @@
 #define RC_FAIL(x) !(RC_OK(x))
 
 typedef struct TaskStruct TaskStruct;
+typedef struct Item Item;
+
 struct TaskStruct
 {
     local_id local_pid;
@@ -17,13 +19,24 @@ struct TaskStruct
     int (*pipes)[2];
 
     timestamp_t last_time;
+
+    // --mutexl
     int locking;
 
-    /*
-     * LOGGING
-     */
+    Item * queue;
+    int queue_size;
+    int queue_capacity;
+
+    int done;
+
+    // logging
     int pipe_log_fd;
     int events_log_fd;
+};
+
+struct Item {
+    timestamp_t time;
+    int pid;
 };
 
 typedef struct MessagePayload MessagePayload;

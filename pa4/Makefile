@@ -1,5 +1,5 @@
 CC=clang-8
-CFLAGS=-g -std=c99 -Wall -pedantic -Werror
+CFLAGS=-g -std=c99 -Wall -pedantic -Werror -fsanitize=address 
 CWD=$(shell pwd)
 
 all:
